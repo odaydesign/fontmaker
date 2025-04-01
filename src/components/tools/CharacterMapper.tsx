@@ -610,6 +610,12 @@ const CharacterMapper: React.FC = () => {
     setSelectedChar(char);
     setSelectedMapping(null);
     redrawCanvas();
+    
+    // Test toast - this should appear whenever a character is selected
+    toast(`Selected character: ${char}`, {
+      position: "top-center",
+      duration: 2000,
+    });
   };
 
   const handleCharDelete = (mappingId: string) => {
@@ -619,6 +625,15 @@ const CharacterMapper: React.FC = () => {
     }
     redrawCanvas();
   };
+
+  // Add a test toast when component mounts
+  useEffect(() => {
+    // Show a test toast on component mount to verify toast is working
+    toast.info("Character mapper initialized", {
+      description: "Click a mapped character to unmap it",
+      duration: 3000,
+    });
+  }, []);
 
   if (sourceImages.length === 0 || !sourceImages.some(img => img.selected)) {
     return (
@@ -729,8 +744,13 @@ const CharacterMapper: React.FC = () => {
                                                   if (mappingForChar) {
                                                     const mappedImageIndex = sourceImages.findIndex(img => img.id === mappingForChar.sourceImageId);
                                                     const imageNumber = mappedImageIndex >= 0 ? mappedImageIndex + 1 : '?';
-                                                    // Use toast from sonner
-                                                    toast.warning(`Character '${char}' is already mapped in Image ${imageNumber}. Switch to that image to modify it.`);
+                                                    
+                                                    // Make toast more prominent with longer duration and additional styling
+                                                    toast.warning(`Character '${char}' is already mapped in Image ${imageNumber}`, {
+                                                      description: "Switch to that image to modify it.",
+                                                      duration: 4000,
+                                                      id: `char-${char}-mapped`,  // Unique ID prevents duplicate toasts
+                                                    });
                                                   }
                                               } else {
                                                   // If not mapped anywhere, click selects character for mapping

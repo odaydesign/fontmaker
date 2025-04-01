@@ -41,10 +41,10 @@ export default function RootLayout({
                 {children}
               </main>
               <Footer />
-              <Toaster />
             </FontProvider>
           </SupabaseAuthProvider>
         </AuthProvider>
+        <Toaster />
       </body>
     </html>
   );
