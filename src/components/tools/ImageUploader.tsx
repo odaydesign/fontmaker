@@ -4,9 +4,10 @@ import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useFont } from '@/context/FontContext';
+import { Trash2 } from 'lucide-react';
 
 const ImageUploader: React.FC = () => {
-  const { addSourceImage, generateAiImage } = useFont();
+  const { addSourceImage, generateAiImage, sourceImages, removeSourceImage } = useFont();
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -124,6 +125,27 @@ const ImageUploader: React.FC = () => {
           >
             Upload Images
           </Button>
+
+          {/* Image Previews */}
+          {sourceImages.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+              {sourceImages.map((image) => (
+                <div key={image.id} className="relative group">
+                  <img
+                    src={image.url}
+                    alt="Uploaded image"
+                    className="w-full h-32 object-cover rounded-lg"
+                  />
+                  <button
+                    onClick={() => removeSourceImage(image.id)}
+                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       

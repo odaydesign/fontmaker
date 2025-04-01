@@ -1,41 +1,118 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useFont } from '@/context/FontContext';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 
-// Add resize handle enum for clarity
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface CharacterMapping {
+  id: string;
+  char: string;
+  sourceImageId: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+interface MappingState {
+  [key: string]: CharacterMapping;
+}
+
 enum ResizeHandle {
-  None = 'none',
-  TopLeft = 'top-left',
-  TopRight = 'top-right',
-  BottomLeft = 'bottom-left',
-  BottomRight = 'bottom-right',
-  Top = 'top',
-  Right = 'right',
-  Bottom = 'bottom',
-  Left = 'left',
-  Move = 'move'
+  None,
+  TopLeft,
+  TopRight,
+  BottomLeft,
+  BottomRight,
+  Top,
+  Right,
+  Bottom,
+  Left,
+  Move
+}
+
+interface SourceImage {
+  id: string;
+  url: string;
 }
 
 const CharacterMapper: React.FC = () => {
   const { sourceImages, characterMappings, addCharacterMapping, removeCharacterMapping, updateCharacterMapping } = useFont();
-  const [selectedChar, setSelectedChar] = useState<string>('');
+  const [selectedChar, setSelectedChar] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [activeHandle, setActiveHandle] = useState<ResizeHandle>(ResizeHandle.None);
-  const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
-  const [endPoint, setEndPoint] = useState({ x: 0, y: 0 });
+  const [startPoint, setStartPoint] = useState<Point>({ x: 0, y: 0 });
+  const [endPoint, setEndPoint] = useState<Point>({ x: 0, y: 0 });
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [activeRect, setActiveRect] = useState<{ id?: string; startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [selectedMapping, setSelectedMapping] = useState<string | null>(null);
   const [scaleFactors, setScaleFactors] = useState({ x: 1, y: 1 });
-  const [lastMousePosition, setLastMousePosition] = useState({ x: 0, y: 0 });
+  const [lastMousePosition, setLastMousePosition] = useState<Point>({ x: 0, y: 0 });
+  const [activeTab, setActiveTab] = useState<
+    'uppercase' | 'lowercase' | 'numbers' | 'basicPunctuation' | 'commonSymbols' | 'accents' | 'currency' | 'math'
+  >('uppercase');
+  const [mappings, setMappings] = useState<MappingState>({});
+  const imageRef = useRef<HTMLImageElement | null>(null);
+
+  // Define character sets
+  const characterSets = {
+    uppercase: Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)),  // A-Z
+    lowercase: Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)),  // a-z
+    numbers: Array.from({ length: 10 }, (_, i) => String(i)),  // 0-9
+    basicPunctuation: ['.', ',', '!', '?', '"', "'", ':', ';', '(', ')', '[', ']', '{', '}'],
+    commonSymbols: ['@', '#', '$', '%', '&', '*', '+', '-', '=', '/', '\\', '|', '<', '>', '_'],
+    accents: ['é', 'è', 'ê', 'ë', 'à', 'â', 'ä', 'ï', 'î', 'ì', 'ñ', 'ó', 'ò', 'ô', 'ö', 'ú', 'ù', 'û', 'ü'],
+    currency: ['$', '€', '£', '¥', '¢', '₹'],
+    math: ['±', '×', '÷', '≠', '≈', '≤', '≥', '∑', '∏', '√', '∞', 'π'],
+  };
+
+  // Labels for the tabs
+  const tabLabels = {
+    uppercase: 'A–Z',
+    lowercase: 'a–z',
+    numbers: '0–9',
+    basicPunctuation: '.,!?',
+    commonSymbols: '@#$',
+    accents: 'éàñ',
+    currency: '$€£',
+    math: '×÷π'
+  };
+
+  // Get all available characters A-Z
+  const availableChars = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
+  
+  // Get mapped characters
+  const mappedChars = new Set(characterMappings.map(m => m.char.toUpperCase()));
+
+  // Navigation functions
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % sourceImages.length);
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + sourceImages.length) % sourceImages.length);
+  };
+
+  // Update currentImageId when index changes
+  useEffect(() => {
+    if (sourceImages.length > 0) {
+      setCurrentImageId(sourceImages[currentImageIndex].id);
+    }
+  }, [currentImageIndex, sourceImages]);
 
   // Get selected image
   const selectedImage = sourceImages.find(img => img.id === currentImageId);
@@ -102,11 +179,11 @@ const CharacterMapper: React.FC = () => {
         
         // Draw active rectangle if we're drawing or resizing
         if (isDrawing || isResizing) {
-          drawSelectionRect(ctx);
+          drawSelectionRect(ctx, scaleX, scaleY);
         }
         
         // Redraw any existing rectangles
-        drawExistingMappings(ctx, drawWidth, drawHeight);
+        drawExistingMappings(ctx, scaleX, scaleY);
         
         // Redraw the selected mapping with resize handles if one is selected
         if (selectedMapping) {
@@ -119,29 +196,26 @@ const CharacterMapper: React.FC = () => {
       
       img.src = selectedImage.url;
     }
-  }, [selectedImage, sourceImages, characterMappings, isDrawing, isResizing, startPoint, endPoint, selectedMapping]);
+  }, [selectedImage, sourceImages, characterMappings, isDrawing, isResizing, startPoint, endPoint, selectedMapping, scaleFactors]);
   
   // Draw the current selection rectangle
-  const drawSelectionRect = (ctx: CanvasRenderingContext2D) => {
-    if (!isDrawing && !isResizing) return;
+  const drawSelectionRect = useCallback((ctx: CanvasRenderingContext2D, scaleX: number, scaleY: number) => {
+    const x = Math.min(startPoint.x, endPoint.x) * scaleX;
+    const y = Math.min(startPoint.y, endPoint.y) * scaleY;
+    const width = Math.abs(endPoint.x - startPoint.x) * scaleX;
+    const height = Math.abs(endPoint.y - startPoint.y) * scaleY;
     
-    const x = Math.min(startPoint.x, endPoint.x);
-    const y = Math.min(startPoint.y, endPoint.y);
-    const width = Math.abs(endPoint.x - startPoint.x);
-    const height = Math.abs(endPoint.y - startPoint.y);
-    
-    // Draw rectangle
-    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
     ctx.lineWidth = 2;
-    ctx.setLineDash([5, 3]); // Dashed line
+    ctx.setLineDash([5, 3]);
     ctx.strokeRect(x, y, width, height);
-    ctx.setLineDash([]); // Reset to solid line
-  };
+    ctx.setLineDash([]);
+  }, [startPoint, endPoint]);
   
   // Draw a selected mapping with resize handles
-  const drawSelectedMapping = (
+  const drawSelectedMapping = useCallback((
     ctx: CanvasRenderingContext2D, 
-    mapping: any, 
+    mapping: CharacterMapping, 
     scaleX: number, 
     scaleY: number
   ) => {
@@ -150,383 +224,388 @@ const CharacterMapper: React.FC = () => {
     const width = (mapping.x2 - mapping.x1) * scaleX;
     const height = (mapping.y2 - mapping.y1) * scaleY;
     
-    // Draw highlighted rectangle
-    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, width, height);
     
-    // Draw resize handles
     const handleSize = 10;
     ctx.fillStyle = 'rgba(59, 130, 246, 0.8)';
     
-    // Draw corner handles
-    ctx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize); // Top-left
-    ctx.fillRect(x + width - handleSize/2, y - handleSize/2, handleSize, handleSize); // Top-right
-    ctx.fillRect(x - handleSize/2, y + height - handleSize/2, handleSize, handleSize); // Bottom-left
-    ctx.fillRect(x + width - handleSize/2, y + height - handleSize/2, handleSize, handleSize); // Bottom-right
+    ctx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
+    ctx.fillRect(x + width - handleSize/2, y - handleSize/2, handleSize, handleSize);
+    ctx.fillRect(x - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
+    ctx.fillRect(x + width - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
     
-    // Draw edge handles
-    ctx.fillRect(x + width/2 - handleSize/2, y - handleSize/2, handleSize, handleSize); // Top
-    ctx.fillRect(x + width - handleSize/2, y + height/2 - handleSize/2, handleSize, handleSize); // Right
-    ctx.fillRect(x + width/2 - handleSize/2, y + height - handleSize/2, handleSize, handleSize); // Bottom
-    ctx.fillRect(x - handleSize/2, y + height/2 - handleSize/2, handleSize, handleSize); // Left
+    ctx.fillRect(x + width/2 - handleSize/2, y - handleSize/2, handleSize, handleSize);
+    ctx.fillRect(x + width - handleSize/2, y + height/2 - handleSize/2, handleSize, handleSize);
+    ctx.fillRect(x + width/2 - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
+    ctx.fillRect(x - handleSize/2, y + height/2 - handleSize/2, handleSize, handleSize);
     
-    // Draw label
     ctx.fillStyle = 'rgba(79, 70, 229, 0.8)';
     ctx.fillRect(x, y - 20, 20, 20);
     ctx.fillStyle = 'white';
     ctx.font = '12px sans-serif';
     ctx.fillText(mapping.char, x + 5, y - 5);
-  };
+  }, []);
   
   // Helper to draw existing character mappings on the canvas
-  const drawExistingMappings = (
+  const drawExistingMappings = useCallback((
     ctx: CanvasRenderingContext2D, 
-    canvasWidth: number, 
-    canvasHeight: number
+    scaleX: number,
+    scaleY: number
   ) => {
     if (!selectedImage) return;
     
-    const originalWidth = selectedImage.width || 0;
-    const originalHeight = selectedImage.height || 0;
-    
-    // Calculate scaling factors
-    const scaleX = canvasWidth / originalWidth;
-    const scaleY = canvasHeight / originalHeight;
-    
-    // Draw existing mappings for this image
     characterMappings
       .filter(mapping => mapping.sourceImageId === selectedImage.id && mapping.id !== selectedMapping)
       .forEach(mapping => {
-        ctx.strokeStyle = 'rgba(75, 85, 99, 0.8)';
-        ctx.lineWidth = 2;
-        
-        // Scale coordinates to match canvas size
         const x = mapping.x1 * scaleX;
         const y = mapping.y1 * scaleY;
         const width = (mapping.x2 - mapping.x1) * scaleX;
         const height = (mapping.y2 - mapping.y1) * scaleY;
         
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.7)';
+        ctx.lineWidth = 1;
+        
         ctx.strokeRect(x, y, width, height);
         
-        // Draw label
-        ctx.fillStyle = 'rgba(79, 70, 229, 0.8)';
-        ctx.fillRect(x, y - 20, 20, 20);
-        ctx.fillStyle = 'white';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(mapping.char, x + 5, y - 5);
+        if (mapping.char) {
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(mapping.char, x + 2, y + 12);
+        }
       });
-  };
+  }, [characterMappings, selectedImage, selectedMapping]);
 
-  // Handle image container resize
-  useEffect(() => {
-    if (!canvasRef.current || !imageContainerRef.current || !selectedImage) return;
+  // Main redraw function
+  const redrawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    const image = imageRef.current;
 
-    const resizeCanvas = () => {
-      if (canvasRef.current && imageContainerRef.current) {
-        canvasRef.current.width = imageContainerRef.current.offsetWidth;
-        canvasRef.current.height = imageContainerRef.current.offsetHeight;
+    if (!canvas || !ctx) return;
+    
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const scaleX = scaleFactors.x;
+    const scaleY = scaleFactors.y;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    if (image) {
+      ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight);
+    } else {
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx.fillStyle = '#888';
+      ctx.textAlign = 'center';
+      ctx.fillText('Loading image...', canvasWidth / 2, canvasHeight / 2);
+    }
+
+    drawExistingMappings(ctx, scaleX, scaleY);
+
+    if (selectedMapping) {
+      const mapping = characterMappings.find(m => m.id === selectedMapping);
+      if (mapping) {
+        drawSelectedMapping(ctx, mapping, scaleX, scaleY);
       }
-    };
+    }
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, [selectedImage]);
+    if (isDrawing) {
+      drawSelectionRect(ctx, scaleX, scaleY);
+    }
+  }, [
+    isDrawing, 
+    selectedMapping, 
+    characterMappings, 
+    scaleFactors,
+    drawExistingMappings, 
+    drawSelectedMapping, 
+    drawSelectionRect
+  ]);
+
+  // Effect for loading image and setting up canvas
+  useEffect(() => {
+    if (selectedImage && canvasRef.current && imageContainerRef.current) {
+      const canvas = canvasRef.current;
+      const container = imageContainerRef.current;
+      let isMounted = true;
+
+      const img = new window.Image();
+      img.onload = () => {
+        if (!isMounted || !container || !selectedImage) return;
+
+        const containerWidth = container.clientWidth;
+        const originalWidth = selectedImage.width || img.naturalWidth;
+        const originalHeight = selectedImage.height || img.naturalHeight;
+
+        if (!selectedImage.width || !selectedImage.height) {
+           console.warn('Updating image dimensions on the fly - should be pre-populated');
+        }
+
+        const aspectRatio = originalWidth > 0 && originalHeight > 0 ? originalWidth / originalHeight : 1;
+        let drawWidth = containerWidth;
+        let drawHeight = containerWidth / aspectRatio;
+        
+        if (!Number.isFinite(drawWidth) || !Number.isFinite(drawHeight) || drawWidth <= 0 || drawHeight <= 0) {
+            console.error('Invalid calculated canvas dimensions', { drawWidth, drawHeight, aspectRatio });
+            drawWidth = containerWidth > 0 ? containerWidth : 300;
+            drawHeight = drawWidth / aspectRatio;
+        }
+
+        canvas.width = drawWidth;
+        canvas.height = drawHeight;
+        
+        const scaleX = originalWidth > 0 ? drawWidth / originalWidth : 1;
+        const scaleY = originalHeight > 0 ? drawHeight / originalHeight : 1;
+        
+        if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) {
+             console.error('Invalid scale factors', { scaleX, scaleY, originalWidth, originalHeight });
+             setScaleFactors({ x: 1, y: 1 });
+        } else {
+             setScaleFactors({ x: scaleX, y: scaleY });
+        }
+        
+        imageRef.current = img;
+        redrawCanvas();
+      };
+
+      img.onerror = () => {
+        console.error("Failed to load image:", selectedImage.url);
+        if (isMounted) {
+            imageRef.current = null;
+            redrawCanvas();
+        }
+      };
+
+      img.src = selectedImage.url;
+
+      return () => {
+        isMounted = false;
+      };
+
+    } else {
+      imageRef.current = null;
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [selectedImage, redrawCanvas]);
 
   // Determine which resize handle was clicked
   const getResizeHandle = (x: number, y: number, rect: { startX: number, startY: number, endX: number, endY: number }): ResizeHandle => {
-    const handleSize = 10;
+    const handleSize = 10 / Math.min(scaleFactors.x, scaleFactors.y);
     const { startX, startY, endX, endY } = rect;
     
-    // Check corners
-    if (Math.abs(x - startX) <= handleSize && Math.abs(y - startY) <= handleSize) {
-      return ResizeHandle.TopLeft;
-    }
-    if (Math.abs(x - endX) <= handleSize && Math.abs(y - startY) <= handleSize) {
-      return ResizeHandle.TopRight;
-    }
-    if (Math.abs(x - startX) <= handleSize && Math.abs(y - endY) <= handleSize) {
-      return ResizeHandle.BottomLeft;
-    }
-    if (Math.abs(x - endX) <= handleSize && Math.abs(y - endY) <= handleSize) {
-      return ResizeHandle.BottomRight;
-    }
+    if (Math.abs(x - startX) <= handleSize && Math.abs(y - startY) <= handleSize) return ResizeHandle.TopLeft;
+    if (Math.abs(x - endX) <= handleSize && Math.abs(y - startY) <= handleSize) return ResizeHandle.TopRight;
+    if (Math.abs(x - startX) <= handleSize && Math.abs(y - endY) <= handleSize) return ResizeHandle.BottomLeft;
+    if (Math.abs(x - endX) <= handleSize && Math.abs(y - endY) <= handleSize) return ResizeHandle.BottomRight;
     
-    // Check edges
     const centerX = (startX + endX) / 2;
     const centerY = (startY + endY) / 2;
     
-    if (Math.abs(x - centerX) <= handleSize && Math.abs(y - startY) <= handleSize) {
-      return ResizeHandle.Top;
-    }
-    if (Math.abs(x - endX) <= handleSize && Math.abs(y - centerY) <= handleSize) {
-      return ResizeHandle.Right;
-    }
-    if (Math.abs(x - centerX) <= handleSize && Math.abs(y - endY) <= handleSize) {
-      return ResizeHandle.Bottom;
-    }
-    if (Math.abs(x - startX) <= handleSize && Math.abs(y - centerY) <= handleSize) {
-      return ResizeHandle.Left;
-    }
+    if (Math.abs(x - centerX) <= handleSize && Math.abs(y - startY) <= handleSize) return ResizeHandle.Top;
+    if (Math.abs(x - endX) <= handleSize && Math.abs(y - centerY) <= handleSize) return ResizeHandle.Right;
+    if (Math.abs(x - centerX) <= handleSize && Math.abs(y - endY) <= handleSize) return ResizeHandle.Bottom;
+    if (Math.abs(x - startX) <= handleSize && Math.abs(y - centerY) <= handleSize) return ResizeHandle.Left;
     
-    // Check if inside rectangle for moving
-    if (x >= startX && x <= endX && y >= startY && y <= endY) {
-      return ResizeHandle.Move;
-    }
+    if (x >= startX && x <= endX && y >= startY && y <= endY) return ResizeHandle.Move;
     
     return ResizeHandle.None;
   };
 
   // Check if we're clicking on an existing mapping
-  const checkExistingMapping = (x: number, y: number) => {
+  const checkExistingMapping = (x: number, y: number): string | null => {
     if (!selectedImage || !canvasRef.current) return null;
     
-    const { x: scaleX, y: scaleY } = scaleFactors;
-    
     for (const mapping of imageMappings) {
-      const rect = {
-        startX: mapping.x1 * scaleX,
-        startY: mapping.y1 * scaleY,
-        endX: mapping.x2 * scaleX,
-        endY: mapping.y2 * scaleY
-      };
-      
-      const handle = getResizeHandle(x, y, rect);
-      if (handle !== ResizeHandle.None) {
-        return { mapping, handle, rect };
-      }
+        const rect = { startX: mapping.x1, startY: mapping.y1, endX: mapping.x2, endY: mapping.y2 };
+        if (x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY) {
+            return mapping.id;
+        }
     }
     
     return null;
   };
 
+  const getCanvasPoint = (e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement): Point => {
+    const rect = canvas.getBoundingClientRect();
+    const image = imageRef.current; // Get the loaded image element
+
+    if (!image || rect.width === 0 || rect.height === 0) {
+      // If image isn't loaded or canvas has no dimensions, return raw offset (fallback)
+      console.warn("Cannot calculate canvas point accurately: Image or canvas dimensions missing.");
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+    }
+
+    const originalWidth = image.naturalWidth;
+    const originalHeight = image.naturalHeight;
+    
+    const offsetX = e.clientX - rect.left; // Mouse offset relative to canvas element (screen pixels)
+    const offsetY = e.clientY - rect.top;
+
+    // Map screen pixel offset to original image coordinate offset
+    const x = offsetX * (originalWidth / rect.width);
+    const y = offsetY * (originalHeight / rect.height);
+
+    // Ensure results are numbers
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        console.warn("Calculated canvas point is not finite.", { x, y, offsetX, offsetY, originalWidth, originalHeight, rectWidth: rect.width, rectHeight: rect.height });
+        return { x: 0, y: 0 }; // Fallback point
+    }
+
+    return { x, y }; // Coordinates relative to original image
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !currentImageId) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    // Check if we're clicking on an existing mapping
-    const clickResult = checkExistingMapping(x, y);
-    
-    if (clickResult) {
-      const { mapping, handle, rect } = clickResult;
-      
-      // Select this mapping
-      setSelectedMapping(mapping.id);
-      setActiveRect(rect);
-      
-      if (handle !== ResizeHandle.None) {
-        // We're resizing or moving this mapping
-        setIsResizing(true);
-        setActiveHandle(handle);
-        setStartPoint({ x: rect.startX, y: rect.startY });
-        setEndPoint({ x: rect.endX, y: rect.endY });
-        setLastMousePosition({ x, y });
+    if (!canvasRef.current || !selectedImage) return;
+    const canvas = canvasRef.current;
+    const point = getCanvasPoint(e, canvas);
+    setLastMousePosition(point);
+
+    if (selectedMapping) {
+      const mapping = characterMappings.find(m => m.id === selectedMapping);
+      if (mapping) {
+        const rect = { 
+          startX: mapping.x1, startY: mapping.y1, 
+          endX: mapping.x2, endY: mapping.y2 
+        };
+        const handle = getResizeHandle(point.x, point.y, rect);
+        if (handle !== ResizeHandle.None) {
+          setActiveHandle(handle);
+          setIsResizing(true);
+          setStartPoint(point);
+          redrawCanvas();
+          return;
+        }
       }
-      
+    }
+
+    const clickedMappingId = checkExistingMapping(point.x, point.y);
+    if (clickedMappingId) {
+      setSelectedMapping(clickedMappingId);
+      setActiveHandle(ResizeHandle.Move);
+      setIsDrawing(false);
+      setIsResizing(false);
+      setStartPoint(point);
+      redrawCanvas();
       return;
     }
-    
-    // We're drawing a new rectangle
-    if (!selectedChar) {
-      setError('Please select a character first');
-      return;
+
+    if (selectedChar) { 
+      setStartPoint(point);
+      setEndPoint(point);
+      setIsDrawing(true);
+      setSelectedMapping(null);
+      setActiveHandle(ResizeHandle.None);
+      redrawCanvas();
+    } else {
+      setSelectedMapping(null);
+      redrawCanvas(); 
     }
-    
-    // Deselect any selected mapping
-    setSelectedMapping(null);
-    setError(null);
-    setIsDrawing(true);
-    setStartPoint({ x, y });
-    setEndPoint({ x, y });
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const point = getCanvasPoint(e, canvas);
+    const dx = point.x - lastMousePosition.x;
+    const dy = point.y - lastMousePosition.y;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    // Set cursor style based on where we are
-    if (!isDrawing && !isResizing) {
-      const clickResult = checkExistingMapping(x, y);
-      if (clickResult) {
-        const { handle } = clickResult;
-        
-        switch (handle) {
-          case ResizeHandle.TopLeft:
-          case ResizeHandle.BottomRight:
-            e.currentTarget.style.cursor = 'nwse-resize';
-            break;
-          case ResizeHandle.TopRight:
-          case ResizeHandle.BottomLeft:
-            e.currentTarget.style.cursor = 'nesw-resize';
-            break;
-          case ResizeHandle.Top:
-          case ResizeHandle.Bottom:
-            e.currentTarget.style.cursor = 'ns-resize';
-            break;
-          case ResizeHandle.Left:
-          case ResizeHandle.Right:
-            e.currentTarget.style.cursor = 'ew-resize';
-            break;
-          case ResizeHandle.Move:
-            e.currentTarget.style.cursor = 'move';
-            break;
-          default:
-            e.currentTarget.style.cursor = 'default';
-        }
-      } else {
-        e.currentTarget.style.cursor = 'crosshair';
-      }
-    }
-    
     if (isDrawing) {
-      // We're drawing a new rectangle
-      setEndPoint({ x, y });
-    } else if (isResizing && activeRect) {
-      // We're resizing or moving an existing rectangle
-      const deltaX = x - lastMousePosition.x;
-      const deltaY = y - lastMousePosition.y;
-      
-      let newStartX = startPoint.x;
-      let newStartY = startPoint.y;
-      let newEndX = endPoint.x;
-      let newEndY = endPoint.y;
-      
-      switch (activeHandle) {
-        case ResizeHandle.TopLeft:
-          newStartX += deltaX;
-          newStartY += deltaY;
-          break;
-        case ResizeHandle.TopRight:
-          newEndX += deltaX;
-          newStartY += deltaY;
-          break;
-        case ResizeHandle.BottomLeft:
-          newStartX += deltaX;
-          newEndY += deltaY;
-          break;
-        case ResizeHandle.BottomRight:
-          newEndX += deltaX;
-          newEndY += deltaY;
-          break;
-        case ResizeHandle.Top:
-          newStartY += deltaY;
-          break;
-        case ResizeHandle.Right:
-          newEndX += deltaX;
-          break;
-        case ResizeHandle.Bottom:
-          newEndY += deltaY;
-          break;
-        case ResizeHandle.Left:
-          newStartX += deltaX;
-          break;
-        case ResizeHandle.Move:
-          newStartX += deltaX;
-          newStartY += deltaY;
-          newEndX += deltaX;
-          newEndY += deltaY;
-          break;
-      }
-      
-      setStartPoint({ x: newStartX, y: newStartY });
-      setEndPoint({ x: newEndX, y: newEndY });
-      setLastMousePosition({ x, y });
+      setEndPoint(point);
+      redrawCanvas();
+    } else if (isResizing && selectedMapping && activeHandle !== ResizeHandle.None) {
+        const mapping = characterMappings.find(m => m.id === selectedMapping);
+        if (!mapping) return;
+        
+        let newMapping = { ...mapping };
+
+        switch (activeHandle) {
+          case ResizeHandle.Move:
+            newMapping.x1 += dx;
+            newMapping.y1 += dy;
+            newMapping.x2 += dx;
+            newMapping.y2 += dy;
+            break;
+          case ResizeHandle.TopLeft: newMapping.x1 += dx; newMapping.y1 += dy; break;
+          case ResizeHandle.TopRight: newMapping.x2 += dx; newMapping.y1 += dy; break;
+          case ResizeHandle.BottomLeft: newMapping.x1 += dx; newMapping.y2 += dy; break;
+          case ResizeHandle.BottomRight: newMapping.x2 += dx; newMapping.y2 += dy; break;
+          case ResizeHandle.Top: newMapping.y1 += dy; break;
+          case ResizeHandle.Bottom: newMapping.y2 += dy; break;
+          case ResizeHandle.Left: newMapping.x1 += dx; break;
+          case ResizeHandle.Right: newMapping.x2 += dx; break;
+        }
+
+        const updatedX1 = Math.min(newMapping.x1, newMapping.x2);
+        const updatedY1 = Math.min(newMapping.y1, newMapping.y2);
+        const updatedX2 = Math.max(newMapping.x1, newMapping.x2);
+        const updatedY2 = Math.max(newMapping.y1, newMapping.y2);
+        
+        newMapping = { ...newMapping, x1: updatedX1, y1: updatedY1, x2: updatedX2, y2: updatedY2 };
+
+        updateCharacterMapping(selectedMapping, newMapping);
+        redrawCanvas();
     }
+    
+    setLastMousePosition(point);
   };
 
   const handleMouseUp = () => {
-    if (!selectedImage) return;
-    
+    const wasDrawing = isDrawing;
+    const wasResizing = isResizing;
+
     if (isDrawing) {
-      finishDrawing();
-    } else if (isResizing && selectedMapping) {
-      finishResizing();
+      const width = Math.abs(endPoint.x - startPoint.x);
+      const height = Math.abs(endPoint.y - startPoint.y);
+
+      if (width > 5 && height > 5 && selectedChar && currentImageId) {
+        const newMapping: CharacterMapping = {
+          id: `map_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          sourceImageId: currentImageId,
+          char: selectedChar,
+          x1: Math.min(startPoint.x, endPoint.x),
+          y1: Math.min(startPoint.y, endPoint.y),
+          x2: Math.max(startPoint.x, endPoint.x),
+          y2: Math.max(startPoint.y, endPoint.y),
+        };
+        addCharacterMapping(newMapping);
+        setSelectedMapping(newMapping.id);
+        setSelectedChar(null);
+      } else if (selectedChar) {
+          setSelectedChar(null);
+      }
     }
-    
+
     setIsDrawing(false);
     setIsResizing(false);
     setActiveHandle(ResizeHandle.None);
-  };
-  
-  const finishDrawing = () => {
-    if (!isDrawing || !selectedChar || !currentImageId || !selectedImage) return;
-    
-    // Normalize coordinates (ensure start < end)
-    const x1 = Math.min(startPoint.x, endPoint.x);
-    const y1 = Math.min(startPoint.y, endPoint.y);
-    const x2 = Math.max(startPoint.x, endPoint.x);
-    const y2 = Math.max(startPoint.y, endPoint.y);
-    
-    // Minimum size check
-    if (x2 - x1 < 10 || y2 - y1 < 10) {
-      setError('Selection area too small. Please make a larger selection.');
-      return;
+
+    if (wasDrawing || wasResizing) {
+      redrawCanvas(); 
     }
-    
-    // Convert to original image coordinates
-    const { x: scaleX, y: scaleY } = scaleFactors;
-    const originalX1 = x1 / scaleX;
-    const originalY1 = y1 / scaleY;
-    const originalX2 = x2 / scaleX;
-    const originalY2 = y2 / scaleY;
-    
-    // Add new character mapping
-    addCharacterMapping({
-      sourceImageId: currentImageId,
-      char: selectedChar,
-      x1: originalX1,
-      y1: originalY1,
-      x2: originalX2,
-      y2: originalY2,
-      originalImageWidth: selectedImage.width || 0,
-      originalImageHeight: selectedImage.height || 0
-    });
-    
-    // Clear selection
-    setSelectedChar('');
-    setActiveRect(null);
-    setError('');
   };
-  
-  const finishResizing = () => {
-    if (!isResizing || !selectedMapping || !selectedImage) return;
-    
-    // Normalize coordinates (ensure start < end)
-    const x1 = Math.min(startPoint.x, endPoint.x);
-    const y1 = Math.min(startPoint.y, endPoint.y);
-    const x2 = Math.max(startPoint.x, endPoint.x);
-    const y2 = Math.max(startPoint.y, endPoint.y);
-    
-    // Minimum size check
-    if (x2 - x1 < 10 || y2 - y1 < 10) {
-      setError('Selection area too small. Please make a larger selection.');
-      // Don't update, keep original size
-      return;
-    }
-    
-    // Convert to original image coordinates
-    const { x: scaleX, y: scaleY } = scaleFactors;
-    const originalX1 = x1 / scaleX;
-    const originalY1 = y1 / scaleY;
-    const originalX2 = x2 / scaleX;
-    const originalY2 = y2 / scaleY;
-    
-    // Update the mapping
-    updateCharacterMapping(selectedMapping, {
-      x1: originalX1,
-      y1: originalY1,
-      x2: originalX2,
-      y2: originalY2
-    });
-    
-    setActiveRect(null);
+
+  const handleMouseLeave = () => {
+      if (isDrawing || isResizing) {
+          setIsDrawing(false);
+          setIsResizing(false);
+          setActiveHandle(ResizeHandle.None);
+          redrawCanvas();
+      }
+  };
+
+  const handleCharSelect = (char: string) => {
+    setSelectedChar(char);
+    setSelectedMapping(null);
+    redrawCanvas();
   };
 
   const handleCharDelete = (mappingId: string) => {
@@ -534,17 +613,8 @@ const CharacterMapper: React.FC = () => {
     if (selectedMapping === mappingId) {
       setSelectedMapping(null);
     }
+    redrawCanvas();
   };
-
-  // Common characters for quick selection
-  const commonChars = [
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    '.', ',', '!', '?', '@', '#', '$', '%', '&', '*', '(', ')', '-', '+', '=', '/'
-  ];
 
   if (sourceImages.length === 0 || !sourceImages.some(img => img.selected)) {
     return (
@@ -555,169 +625,133 @@ const CharacterMapper: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Image selector */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Select Image</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {sourceImages
-            .filter(img => img.selected)
-            .map(image => (
-              <div
-                key={image.id}
-                onClick={() => setCurrentImageId(image.id)}
-                className={`relative aspect-video cursor-pointer rounded-md overflow-hidden border-2 transition-all ${
-                  currentImageId === image.id ? 'border-indigo-500 shadow-md' : 'border-gray-200'
-                }`}
-              >
-                <Image
-                  src={image.url}
-                  alt={image.aiPrompt || 'Uploaded image'}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                  className="object-cover"
-                />
-              </div>
-            ))}
-        </div>
-      </div>
-
-      {/* Character selector */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Select Character to Map</h3>
-        <div className="mb-4">
-          <Input
-            label="Custom Character"
-            value={selectedChar}
-            onChange={e => setSelectedChar(e.target.value.charAt(0))}
-            placeholder="Type a character"
-            maxLength={1}
-          />
+    <div className="space-y-4">
+      <div className="flex flex-col space-y-4">
+        <h2 className="text-lg font-semibold">Map Characters</h2>
+        
+        <div className="flex gap-1 overflow-x-auto pb-2">
+          {sourceImages.map((image, index) => (
+            <button
+              key={image.id}
+              onClick={() => setCurrentImageIndex(index)}
+              className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                currentImageIndex === index ? 'border-primary ring-2 ring-primary/30' : 'border-gray-200'
+              }`}
+            >
+              <img
+                src={image.url}
+                alt={`Image ${index + 1}`}
+                className="w-full h-full object-contain bg-gray-50"
+              />
+              <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs py-1 text-center">
+                {index + 1}
+              </span>
+            </button>
+          ))}
         </div>
 
-        <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Common Characters</h4>
-          <div className="grid grid-cols-10 md:grid-cols-16 gap-1">
-            {commonChars.map(char => (
-              <button
-                key={char}
-                onClick={() => setSelectedChar(char)}
-                className={`h-10 w-10 rounded-md flex items-center justify-center text-sm font-medium ${
-                  selectedChar === char
-                    ? 'bg-indigo-100 border-2 border-indigo-500 text-indigo-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {char}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Mapping canvas */}
-      {selectedImage ? (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Draw and Adjust Character Boxes
-          </h3>
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <h4 className="text-md font-medium text-gray-700 mb-1">Instructions:</h4>
-              <ol className="text-gray-600 text-sm space-y-1 list-decimal pl-5">
-                <li>Select a character from above</li>
-                <li>Draw a box around the character in the image</li>
-                <li>To adjust a box, click on it to select</li>
-                <li>Drag the handles to resize, or the center to move</li>
-                <li>Click outside to confirm changes</li>
-              </ol>
-            </div>
-            <div className="flex-1">
-              <h4 className="text-md font-medium text-gray-700 mb-1">Tips:</h4>
-              <ul className="text-gray-600 text-sm space-y-1 list-disc pl-5">
-                <li>Select a character then click and drag to create a box</li>
-                <li>Blue squares are resize handles</li>
-                <li>Blue outline shows the currently selected box</li>
-                <li>Press and hold to move the entire box</li>
-              </ul>
-            </div>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded mb-4">
-              {error}
-            </div>
-          )}
-
-          <div
-            ref={imageContainerRef}
-            className="relative w-full aspect-video max-h-[600px] mb-6 rounded overflow-hidden"
-          >
-            <Image
-              src={selectedImage.url}
-              alt={selectedImage.aiPrompt || 'Selected image'}
-              fill
-              className="object-contain"
-            />
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 cursor-crosshair"
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-            />
-          </div>
-
-          {/* Mapped characters */}
-          {imageMappings.length > 0 && (
-            <div>
-              <h4 className="text-md font-medium text-gray-800 mb-2">Mapped Characters</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                {imageMappings.map(mapping => (
-                  <div
-                    key={mapping.id}
-                    className={`bg-gray-50 border rounded p-2 flex items-center justify-between ${
-                      selectedMapping === mapping.id
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200'
-                    }`}
-                    onClick={() => setSelectedMapping(mapping.id)}
-                  >
-                    <span className="text-lg font-medium">{mapping.char}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCharDelete(mapping.id);
-                      }}
-                    >
-                      <svg
-                        className="h-4 w-4 text-gray-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </Button>
-                  </div>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="mb-4">
+            <TabsList className="flex flex-wrap gap-1 bg-muted p-1 rounded-md h-auto">
+                {Object.entries(characterSets).map(([key, chars]) => (
+                    <TabsTrigger key={key} value={key} className="text-xs">
+                        {tabLabels[key as keyof typeof tabLabels]}
+                    </TabsTrigger>
                 ))}
-              </div>
+            </TabsList>
+
+            {(Object.keys(characterSets) as Array<keyof typeof characterSets>).map((setName) => (
+                <TabsContent key={setName} value={setName} className="mt-2">
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-8 sm:grid-cols-13 gap-1">
+                            {characterSets[setName].map((char) => {
+                                const isMapped = mappedChars.has(char);
+                                return (
+                                    <Button
+                                        key={char}
+                                        variant={selectedChar === char ? 'secondary' : 'outline'}
+                                        size="sm"
+                                        onClick={() => handleCharSelect(char)}
+                                        className={`aspect-square p-0 font-mono text-lg ${mappedChars.has(char.toUpperCase()) ? 'border-green-500 border-2' : ''}`}
+                                        disabled={mappedChars.has(char.toUpperCase()) && selectedChar !== char}
+                                        title={mappedChars.has(char.toUpperCase()) ? `${char} (already mapped)` : char}
+                                    >
+                                        {char}
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </TabsContent>
+            ))}
+        </Tabs>
+
+        {selectedImage ? (
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="relative w-full rounded overflow-hidden flex justify-center bg-gray-50" ref={imageContainerRef}>
+              <canvas
+                ref={canvasRef}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                className="max-w-full max-h-[600px] object-contain cursor-crosshair"
+              />
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="bg-gray-50 p-8 rounded text-center">
-          <p className="text-gray-500">Please select an image to start mapping characters.</p>
-        </div>
-      )}
+
+            {error && (
+              <div className="mt-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded">
+                {error}
+              </div>
+            )}
+
+            {imageMappings.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-md font-medium text-gray-800 mb-2">Mapped Characters</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                  {imageMappings.map(mapping => (
+                    <div
+                      key={mapping.id}
+                      className={`bg-gray-50 border rounded p-2 flex items-center justify-between ${
+                        selectedMapping === mapping.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-gray-200'
+                      }`}
+                      onClick={() => setSelectedMapping(mapping.id)}
+                    >
+                      <span className="text-lg font-medium">{mapping.char}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCharDelete(mapping.id);
+                        }}
+                        className="p-1 hover:bg-gray-200 rounded"
+                      >
+                        <svg
+                          className="h-4 w-4 text-gray-500"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-gray-50 p-8 rounded text-center">
+            <p className="text-gray-500">Please select an image to start mapping characters.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

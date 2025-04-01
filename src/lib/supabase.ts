@@ -69,7 +69,7 @@ const mockMethods = {
 // Test the connection
 (async () => {
   try {
-    const { data, error } = await supabase.from('fonts').select('count(*)', { count: 'exact' });
+    const { error } = await supabase.from('fonts').select('*', { count: 'exact', head: true });
     if (error) {
       console.error('Error connecting to Supabase database:', error.message);
     } else {
@@ -195,6 +195,22 @@ export const getPublicUrl = (bucket: string, filePath: string) => {
   
   const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
   return data.publicUrl;
+};
+
+export const getFontCount = async (): Promise<number> => {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  // Get only the count, not the data
+  const { count, error } = await supabase.from('fonts').select('*', { count: 'exact', head: true });
+
+  if (error) {
+    console.error('Error getting font count:', error.message);
+    return 0;
+  }
+
+  return count ?? 0; // Return 0 if count is null
 };
 
 export default supabase; 
