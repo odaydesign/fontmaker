@@ -664,7 +664,10 @@ const CharacterMapper: React.FC = () => {
                     <div className="space-y-2">
                         <div className="grid grid-cols-8 sm:grid-cols-13 gap-x-4 gap-y-4">
                             {characterSets[setName].map((char) => {
-                                const isMapped = !!characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
+                                // Check if the character is mapped in ANY image (not just the current one)
+                                const mappingForChar = characterMappings.find(m => m.char === char);
+                                const isMapped = !!mappingForChar;
+                                const isCharMappedInCurrentImage = !!characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
                                 const isSelected = selectedChar === char;
 
                                 // Simplified button styling that ensures text is clearly visible
@@ -673,9 +676,29 @@ const CharacterMapper: React.FC = () => {
                                 if (isSelected) {
                                     buttonClasses += " bg-primary border-primary text-primary-foreground";
                                 } else if (isMapped) {
-                                    buttonClasses += " border-green-500 border-2 bg-green-50 text-green-800 hover:bg-red-100 hover:border-red-500 hover:text-red-700";
+                                    // Different color if mapped in current vs different image
+                                    if (isCharMappedInCurrentImage) {
+                                        buttonClasses += " border-green-500 border-2 bg-green-50 text-green-800 hover:bg-red-100 hover:border-red-500 hover:text-red-700";
+                                    } else {
+                                        buttonClasses += " border-blue-500 border-2 bg-blue-50 text-blue-800";
+                                    }
                                 } else {
                                     buttonClasses += " bg-white border-gray-300 text-gray-900";
+                                }
+
+                                // Tooltip content that shows where character is mapped
+                                let tooltipContent = "";
+                                if (isMapped && mappingForChar) {
+                                    const mappedImageIndex = sourceImages.findIndex(img => img.id === mappingForChar.sourceImageId);
+                                    const imageNumber = mappedImageIndex >= 0 ? mappedImageIndex + 1 : '?';
+                                    tooltipContent = `Mapped in Image ${imageNumber}`;
+                                    if (isCharMappedInCurrentImage) {
+                                        tooltipContent += " (current image). Click to unmap";
+                                    }
+                                } else if (isSelected) {
+                                    tooltipContent = `'${char}' selected`;
+                                } else {
+                                    tooltipContent = `Select ${char} to map`;
                                 }
 
                                 return (
@@ -683,12 +706,12 @@ const CharacterMapper: React.FC = () => {
                                       <Button
                                           variant="outline"
                                           onClick={() => {
-                                              if (isMapped) {
-                                                  // If mapped, click removes mapping
+                                              if (isCharMappedInCurrentImage) {
+                                                  // If mapped in current image, click removes mapping
                                                   if (isSelected) {
                                                       setSelectedChar(null);
                                                   }
-                                                  // Find the mapping object again (or ensure it's in scope)
+                                                  // Find the mapping in current image
                                                   const mappingToRemove = characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
                                                   if (mappingToRemove) {
                                                     removeCharacterMapping(mappingToRemove.id);
@@ -697,15 +720,25 @@ const CharacterMapper: React.FC = () => {
                                                         setSelectedMapping(null);
                                                     }
                                                   }
-                                                  // Context update should trigger redraw implicitly
+                                              } else if (isMapped && !isCharMappedInCurrentImage) {
+                                                  // Character is mapped in a different image - show message or warning
+                                                  if (mappingForChar) {
+                                                    const mappedImageIndex = sourceImages.findIndex(img => img.id === mappingForChar.sourceImageId);
+                                                    const imageNumber = mappedImageIndex >= 0 ? mappedImageIndex + 1 : '?';
+                                                    alert(`Character '${char}' is already mapped in Image ${imageNumber}. Switch to that image to modify it.`);
+                                                  }
                                               } else {
-                                                  // If not mapped, click selects character for mapping
+                                                  // If not mapped anywhere, click selects character for mapping
                                                   handleCharSelect(char);
                                               }
                                           }}
-                                          disabled={isMapped && selectedChar !== null && selectedChar !== char} 
+                                          // Disable if:
+                                          // - Character is already mapped in a different image (can't map twice)
+                                          // - Or we have a different character selected and this one is mapped
+                                          disabled={(isMapped && !isCharMappedInCurrentImage) || 
+                                                   (isCharMappedInCurrentImage && selectedChar !== null && selectedChar !== char)}
                                           className={buttonClasses}
-                                          title={isMapped ? `Click to unmap ${char}` : selectedChar === char ? `'${char}' selected` : `Select ${char} to map`}
+                                          title={tooltipContent}
                                       >
                                           {char}
                                       </Button>
