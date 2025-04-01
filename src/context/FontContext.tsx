@@ -23,6 +23,8 @@ export interface CharacterMapping {
   y2: number;
   originalImageWidth?: number;
   originalImageHeight?: number;
+  isPolygon?: boolean;
+  polygonPoints?: {x: number, y: number}[];
 }
 
 export interface FontMetadata {
