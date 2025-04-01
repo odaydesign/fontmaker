@@ -662,21 +662,54 @@ const CharacterMapper: React.FC = () => {
             {(Object.keys(characterSets) as Array<keyof typeof characterSets>).map((setName) => (
                 <TabsContent key={setName} value={setName} className="mt-2">
                     <div className="space-y-2">
-                        <div className="grid grid-cols-8 sm:grid-cols-13 gap-1">
+                        <div className="grid grid-cols-8 sm:grid-cols-13 gap-x-4 gap-y-4">
                             {characterSets[setName].map((char) => {
-                                const isMapped = mappedChars.has(char);
+                                const isMapped = !!characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
+                                const isSelected = selectedChar === char;
+
+                                // Simplified button styling that ensures text is clearly visible
+                                let buttonClasses = "h-12 w-12 font-medium text-lg"; 
+
+                                if (isSelected) {
+                                    buttonClasses += " bg-primary border-primary text-primary-foreground";
+                                } else if (isMapped) {
+                                    buttonClasses += " border-green-500 border-2 bg-green-50 text-green-800 hover:bg-red-100 hover:border-red-500 hover:text-red-700";
+                                } else {
+                                    buttonClasses += " bg-white border-gray-300 text-gray-900";
+                                }
+
                                 return (
-                                    <Button
-                                        key={char}
-                                        variant={selectedChar === char ? 'secondary' : 'outline'}
-                                        size="sm"
-                                        onClick={() => handleCharSelect(char)}
-                                        className={`aspect-square p-0 font-mono text-lg ${mappedChars.has(char.toUpperCase()) ? 'border-green-500 border-2' : ''}`}
-                                        disabled={mappedChars.has(char.toUpperCase()) && selectedChar !== char}
-                                        title={mappedChars.has(char.toUpperCase()) ? `${char} (already mapped)` : char}
-                                    >
-                                        {char}
-                                    </Button>
+                                    <div key={char} className="relative"> 
+                                      <Button
+                                          variant="outline"
+                                          onClick={() => {
+                                              if (isMapped) {
+                                                  // If mapped, click removes mapping
+                                                  if (isSelected) {
+                                                      setSelectedChar(null);
+                                                  }
+                                                  // Find the mapping object again (or ensure it's in scope)
+                                                  const mappingToRemove = characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
+                                                  if (mappingToRemove) {
+                                                    removeCharacterMapping(mappingToRemove.id);
+                                                    // If the mapping being removed was selected on canvas, deselect it
+                                                    if (selectedMapping === mappingToRemove.id) {
+                                                        setSelectedMapping(null);
+                                                    }
+                                                  }
+                                                  // Context update should trigger redraw implicitly
+                                              } else {
+                                                  // If not mapped, click selects character for mapping
+                                                  handleCharSelect(char);
+                                              }
+                                          }}
+                                          disabled={isMapped && selectedChar !== null && selectedChar !== char} 
+                                          className={buttonClasses}
+                                          title={isMapped ? `Click to unmap ${char}` : selectedChar === char ? `'${char}' selected` : `Select ${char} to map`}
+                                      >
+                                          {char}
+                                      </Button>
+                                    </div>
                                 );
                             })}
                         </div>
