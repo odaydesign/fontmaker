@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String    @unique
+  displayName   String?
+  passwordHash  String
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  fonts         Font[]
+}
+
+model Font {
+  id            String    @id @default(uuid())
+  name          String
+  description   String?
+  author        String?
+  isPublic      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  
+  characterMappings CharacterMapping[]
+  sourceImages      SourceImage[]
+  fontFiles         FontFile[]
+  tags              FontTag[]
+}
+
+model SourceImage {
+  id            String    @id @default(uuid())
+  url           String
+  storageKey    String?
+  isAiGenerated Boolean   @default(false)
+  aiPrompt      String?
+  width         Int?
+  height        Int?
+  createdAt     DateTime  @default(now())
+  
+  fontId        String
+  font          Font      @relation(fields: [fontId], references: [id], onDelete: Cascade)
+  
+  characterMappings CharacterMapping[]
+}
+
+model CharacterMapping {
+  id                String    @id @default(uuid())
+  char              String
+  x1                Float
+  y1                Float
+  x2                Float
+  y2                Float
+  originalImageWidth  Float?
+  originalImageHeight Float?
+  charImageUrl     String?
+  charImageKey     String?
+  createdAt        DateTime  @default(now())
+  
+  fontId           String
+  font             Font      @relation(fields: [fontId], references: [id], onDelete: Cascade)
+  
+  sourceImageId    String
+  sourceImage      SourceImage @relation(fields: [sourceImageId], references: [id], onDelete: Cascade)
+}
+
+model FontFile {
+  id            String    @id @default(uuid())
+  format        String    // e.g., "ttf", "otf", "woff2"
+  url           String?
+  storageKey    String?
+  fileSize      Int?
+  downloadCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  fontId        String
+  font          Font      @relation(fields: [fontId], references: [id], onDelete: Cascade)
+}
+
+model FontTag {
+  id        String   @id @default(uuid())
+  name      String
+  
+  fontId    String
+  font      Font     @relation(fields: [fontId], references: [id], onDelete: Cascade)
+  
+  @@unique([fontId, name])
+}
