@@ -690,10 +690,10 @@ const CharacterMapper: React.FC = () => {
                                 const isSelected = selectedChar === char;
 
                                 // Simplified button styling that ensures text is clearly visible
-                                let buttonClasses = "h-12 w-12 font-medium text-lg"; 
+                                let buttonClasses = "h-12 w-12 font-medium text-lg flex items-center justify-center"; 
 
                                 if (isSelected) {
-                                    buttonClasses += " bg-primary border-primary text-primary-foreground";
+                                    buttonClasses += " bg-blue-500 border-blue-600 text-white font-bold shadow-md scale-110 z-10";
                                 } else if (isMapped) {
                                     // Different color if mapped in current vs different image
                                     if (isCharMappedInCurrentImage) {
@@ -765,7 +765,7 @@ const CharacterMapper: React.FC = () => {
                                           className={buttonClasses}
                                           title={tooltipContent}
                                       >
-                                          {char}
+                                          <span className="text-2xl">{char}</span>
                                       </Button>
                                     </div>
                                 );
