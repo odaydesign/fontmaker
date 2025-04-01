@@ -7,20 +7,11 @@ import Input from '@/components/ui/Input';
 import { useFont } from '@/context/FontContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
+import { toast } from "sonner";
 
 interface Point {
   x: number;
   y: number;
-}
-
-interface CharacterMapping {
-  id: string;
-  char: string;
-  sourceImageId: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
 }
 
 interface MappingState {
@@ -43,6 +34,17 @@ enum ResizeHandle {
 interface SourceImage {
   id: string;
   url: string;
+}
+
+// Define CharacterMapping interface directly in this file
+interface CharacterMapping {
+  id: string;
+  sourceImageId: string;
+  char: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }
 
 const CharacterMapper: React.FC = () => {
@@ -257,8 +259,8 @@ const CharacterMapper: React.FC = () => {
     if (!selectedImage) return;
     
     characterMappings
-      .filter(mapping => mapping.sourceImageId === selectedImage.id && mapping.id !== selectedMapping)
-      .forEach(mapping => {
+      .filter((mapping: CharacterMapping) => mapping.sourceImageId === selectedImage.id && mapping.id !== selectedMapping)
+      .forEach((mapping: CharacterMapping) => {
         const x = mapping.x1 * scaleX;
         const y = mapping.y1 * scaleY;
         const width = (mapping.x2 - mapping.x1) * scaleX;
@@ -421,7 +423,9 @@ const CharacterMapper: React.FC = () => {
   const checkExistingMapping = (x: number, y: number): string | null => {
     if (!selectedImage || !canvasRef.current) return null;
     
-    for (const mapping of imageMappings) {
+    const currentImageMappings = characterMappings.filter((m: CharacterMapping) => m.sourceImageId === selectedImage.id);
+
+    for (const mapping of currentImageMappings) {
         const rect = { startX: mapping.x1, startY: mapping.y1, endX: mapping.x2, endY: mapping.y2 };
         if (x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY) {
             return mapping.id;
@@ -665,9 +669,9 @@ const CharacterMapper: React.FC = () => {
                         <div className="grid grid-cols-8 sm:grid-cols-13 gap-x-4 gap-y-4">
                             {characterSets[setName].map((char) => {
                                 // Check if the character is mapped in ANY image (not just the current one)
-                                const mappingForChar = characterMappings.find(m => m.char === char);
+                                const mappingForChar = characterMappings.find((m: CharacterMapping) => m.char === char);
                                 const isMapped = !!mappingForChar;
-                                const isCharMappedInCurrentImage = !!characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
+                                const isCharMappedInCurrentImage = !!characterMappings.find((m: CharacterMapping) => m.char === char && m.sourceImageId === currentImageId);
                                 const isSelected = selectedChar === char;
 
                                 // Simplified button styling that ensures text is clearly visible
@@ -712,7 +716,7 @@ const CharacterMapper: React.FC = () => {
                                                       setSelectedChar(null);
                                                   }
                                                   // Find the mapping in current image
-                                                  const mappingToRemove = characterMappings.find(m => m.char === char && m.sourceImageId === currentImageId);
+                                                  const mappingToRemove = characterMappings.find((m: CharacterMapping) => m.char === char && m.sourceImageId === currentImageId);
                                                   if (mappingToRemove) {
                                                     removeCharacterMapping(mappingToRemove.id);
                                                     // If the mapping being removed was selected on canvas, deselect it
@@ -721,11 +725,12 @@ const CharacterMapper: React.FC = () => {
                                                     }
                                                   }
                                               } else if (isMapped && !isCharMappedInCurrentImage) {
-                                                  // Character is mapped in a different image - show message or warning
+                                                  // Character is mapped in a different image - use toast instead of our custom notification
                                                   if (mappingForChar) {
                                                     const mappedImageIndex = sourceImages.findIndex(img => img.id === mappingForChar.sourceImageId);
                                                     const imageNumber = mappedImageIndex >= 0 ? mappedImageIndex + 1 : '?';
-                                                    alert(`Character '${char}' is already mapped in Image ${imageNumber}. Switch to that image to modify it.`);
+                                                    // Use toast from sonner
+                                                    toast.warning(`Character '${char}' is already mapped in Image ${imageNumber}. Switch to that image to modify it.`);
                                                   }
                                               } else {
                                                   // If not mapped anywhere, click selects character for mapping
@@ -774,7 +779,7 @@ const CharacterMapper: React.FC = () => {
               <div className="mt-4">
                 <h4 className="text-md font-medium text-gray-800 mb-2">Mapped Characters</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {imageMappings.map(mapping => (
+                  {imageMappings.map((mapping: CharacterMapping) => (
                     <div
                       key={mapping.id}
                       className={`bg-gray-50 border rounded p-2 flex items-center justify-between ${

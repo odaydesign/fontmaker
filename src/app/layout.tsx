@@ -6,6 +6,7 @@ import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/context/AuthContext";
 import { FontProvider } from "@/context/FontContext";
 import { SupabaseAuthProvider } from "@/context/SupabaseAuthContext";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
                 {children}
               </main>
               <Footer />
+              <Toaster />
             </FontProvider>
           </SupabaseAuthProvider>
         </AuthProvider>
