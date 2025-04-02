@@ -21,15 +21,15 @@ const isPlaceholderKey =
   supabaseAnonKey === 'your-actual-anon-key';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevWithPlaceholders = isDevelopment && (isPlaceholderUrl || isPlaceholderKey);
 
 // In development, we'll still create a client even with placeholder credentials
 // But we'll log warnings
 if (isPlaceholderUrl || isPlaceholderKey) {
   if (isDevelopment) {
-    console.error(
-      'Supabase credentials appear to be placeholder values. Please replace them with actual values from your Supabase project.'
+    console.warn(
+      'Supabase credentials appear to be placeholder values. App will run in mock mode.'
     );
-    console.log('In development mode, a client will be created but functionality will be limited.');
   } else {
     // In production, don't even try to create a client with bad credentials
     throw new Error(
@@ -54,7 +54,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Create a mock client for development when using placeholder credentials
 const mockMethods = {
   async mockResponse(success = true) {
-    if (isPlaceholderUrl || isPlaceholderKey) {
+    if (isDevWithPlaceholders) {
       return {
         data: success ? {} : null,
         error: success ? null : { 
@@ -66,8 +66,13 @@ const mockMethods = {
   }
 };
 
-// Test the connection
+// Test the connection - but skip the test in dev mode with placeholder credentials
 (async () => {
+  if (isDevWithPlaceholders) {
+    console.log('Development mode with placeholder credentials - skipping Supabase connection test');
+    return;
+  }
+  
   try {
     const { error } = await supabase.from('fonts').select('*', { count: 'exact', head: true });
     if (error) {
