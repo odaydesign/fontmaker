@@ -41,6 +41,13 @@ interface SourceImage {
   url: string;
 }
 
+interface ImageData {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
 const calculateBoundingBox = (points: {x: number, y: number}[]) => {
   if (points.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   
@@ -60,7 +67,15 @@ const calculateBoundingBox = (points: {x: number, y: number}[]) => {
 };
 
 const CharacterMapper: React.FC = () => {
-  const { sourceImages, characterMappings, addCharacterMapping, removeCharacterMapping, updateCharacterMapping } = useFont();
+  const { 
+    sourceImages, 
+    characterMappings, 
+    addCharacterMapping, 
+    removeCharacterMapping, 
+    updateCharacterMapping,
+    unmappedChars,
+    setUnmappedChars
+  } = useFont();
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
@@ -142,63 +157,8 @@ const CharacterMapper: React.FC = () => {
     }
   }, [sourceImages, currentImageId]);
 
-  useEffect(() => {
-    if (selectedImage && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) return;
-      
-      const img = new window.Image();
-      
-      img.onload = () => {
-        const container = imageContainerRef.current;
-        if (!container) return;
-        
-        const containerWidth = container.clientWidth;
-        
-        if (!selectedImage.width || !selectedImage.height) {
-          sourceImages.forEach(image => {
-            if (image.id === selectedImage.id) {
-              image.width = img.naturalWidth;
-              image.height = img.naturalHeight;
-            }
-          });
-        }
-        
-        const aspectRatio = img.naturalWidth / img.naturalHeight;
-        let drawWidth = containerWidth;
-        let drawHeight = containerWidth / aspectRatio;
-        
-        canvas.width = drawWidth;
-        canvas.height = drawHeight;
-        
-        const scaleX = drawWidth / (selectedImage.width || img.naturalWidth);
-        const scaleY = drawHeight / (selectedImage.height || img.naturalHeight);
-        setScaleFactors({ x: scaleX, y: scaleY });
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, drawWidth, drawHeight);
-        
-        if (isDrawing || isResizing) {
-          drawSelectionRect(ctx, scaleX, scaleY);
-        }
-        
-        drawExistingMappings(ctx, scaleX, scaleY);
-        
-        if (selectedMapping) {
-          const mapping = characterMappings.find(m => m.id === selectedMapping);
-          if (mapping) {
-            drawSelectedMapping(ctx, mapping, scaleX, scaleY);
-          }
-        }
-      };
-      
-      img.src = selectedImage.url;
-    }
-  }, [selectedImage, sourceImages, characterMappings, isDrawing, isResizing, startPoint, endPoint, selectedMapping, scaleFactors]);
-  
   const drawSelectionRect = useCallback((ctx: CanvasRenderingContext2D, scaleX: number, scaleY: number) => {
+    // Draw the current selection rectangle using scaled coordinates
     const x = Math.min(startPoint.x, endPoint.x) * scaleX;
     const y = Math.min(startPoint.y, endPoint.y) * scaleY;
     const width = Math.abs(endPoint.x - startPoint.x) * scaleX;
@@ -209,6 +169,13 @@ const CharacterMapper: React.FC = () => {
     ctx.setLineDash([5, 3]);
     ctx.strokeRect(x, y, width, height);
     ctx.setLineDash([]);
+    
+    // Add coordinates for debugging alignment issues
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(x, y - 20, 150, 20);
+    ctx.fillStyle = 'white';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(`Orig: ${Math.round(startPoint.x)},${Math.round(startPoint.y)} - ${Math.round(endPoint.x)},${Math.round(endPoint.y)}`, x + 5, y - 5);
   }, [startPoint, endPoint]);
   
   const drawSelectedMapping = useCallback((
@@ -217,33 +184,46 @@ const CharacterMapper: React.FC = () => {
     scaleX: number, 
     scaleY: number
   ) => {
+    // Draw the selected mapping with resize handles
     const x = mapping.x1 * scaleX;
     const y = mapping.y1 * scaleY;
     const width = (mapping.x2 - mapping.x1) * scaleX;
     const height = (mapping.y2 - mapping.y1) * scaleY;
     
+    // Draw with a thicker blue border
     ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, width, height);
     
+    // Draw resize handles at the corners and midpoints
     const handleSize = 10;
     ctx.fillStyle = 'rgba(59, 130, 246, 0.8)';
     
+    // Corner handles
     ctx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
     ctx.fillRect(x + width - handleSize/2, y - handleSize/2, handleSize, handleSize);
     ctx.fillRect(x - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
     ctx.fillRect(x + width - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
     
+    // Middle handles
     ctx.fillRect(x + width/2 - handleSize/2, y - handleSize/2, handleSize, handleSize);
     ctx.fillRect(x + width - handleSize/2, y + height/2 - handleSize/2, handleSize, handleSize);
     ctx.fillRect(x + width/2 - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
     ctx.fillRect(x - handleSize/2, y + height/2 - handleSize/2, handleSize, handleSize);
     
+    // Draw character label
     ctx.fillStyle = 'rgba(79, 70, 229, 0.8)';
-    ctx.fillRect(x, y - 20, 20, 20);
+    ctx.fillRect(x, y - 20, 30, 20);
     ctx.fillStyle = 'white';
     ctx.font = '12px sans-serif';
-    ctx.fillText(mapping.char, x + 5, y - 5);
+    ctx.fillText(mapping.char, x + 10, y - 5);
+    
+    // Show coordinates for debugging
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(x + 35, y - 20, 120, 20);
+    ctx.fillStyle = 'white';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(`${Math.round(mapping.x1)},${Math.round(mapping.y1)} - ${Math.round(mapping.x2)},${Math.round(mapping.y2)}`, x + 40, y - 5);
   }, []);
   
   const drawPolygon = useCallback((
@@ -284,9 +264,11 @@ const CharacterMapper: React.FC = () => {
       ctx.fill();
     }
     
+    // Draw points
+    const pointRadius = 5;
     scaledPoints.forEach((point, index) => {
       ctx.beginPath();
-      ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, pointRadius, 0, Math.PI * 2);
       
       if (index === selectedPointIndex) {
         ctx.fillStyle = 'rgba(245, 66, 66, 0.9)';
@@ -297,6 +279,7 @@ const CharacterMapper: React.FC = () => {
       ctx.fill();
     });
     
+    // Draw point numbers
     ctx.font = '10px sans-serif';
     ctx.fillStyle = 'white';
     ctx.textAlign = 'center';
@@ -324,101 +307,198 @@ const CharacterMapper: React.FC = () => {
   ) => {
     if (!selectedImage) return;
     
+    // Draw all character mappings for the current image (except selected one)
     characterMappings
       .filter((mapping: CharacterMapping) => mapping.sourceImageId === selectedImage.id && mapping.id !== selectedMapping)
       .forEach((mapping: CharacterMapping) => {
         if (mapping.isPolygon && mapping.polygonPoints) {
+          // Draw polygon-based mappings
           drawPolygon(ctx, mapping.polygonPoints, scaleX, scaleY);
           
           if (mapping.char && mapping.polygonPoints.length > 0) {
             const firstPoint = mapping.polygonPoints[0];
             ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
             ctx.font = '12px sans-serif';
-            ctx.fillText(mapping.char, firstPoint.x * scaleX + 2, firstPoint.y * scaleY + 12);
+            ctx.fillText(mapping.char, firstPoint.x * scaleX + 2, firstPoint.y * scaleY - 5);
           }
         } else {
+          // Draw rectangle-based mappings
           const x = mapping.x1 * scaleX;
           const y = mapping.y1 * scaleY;
           const width = (mapping.x2 - mapping.x1) * scaleX;
           const height = (mapping.y2 - mapping.y1) * scaleY;
           
           ctx.strokeStyle = 'rgba(16, 185, 129, 0.7)';
-          ctx.lineWidth = 1;
+          ctx.lineWidth = 1.5;
           
           ctx.strokeRect(x, y, width, height);
           
           if (mapping.char) {
-              ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
-              ctx.font = '12px sans-serif';
-              ctx.fillText(mapping.char, x + 2, y + 12);
+            // Draw character label
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+            ctx.fillRect(x, y - 20, 25, 20);
+            ctx.fillStyle = 'white';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(mapping.char, x + 8, y - 5);
           }
         }
       });
   }, [characterMappings, selectedImage, selectedMapping, drawPolygon]);
 
-  const redrawCanvas = useCallback(() => {
+  // Main canvas redraw function
+  const redrawCanvas = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    const image = imageRef.current;
-
-    if (!canvas || !ctx) return;
     
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-    const scaleX = scaleFactors.x;
-    const scaleY = scaleFactors.y;
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    if (image) {
-      ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight);
-    } else {
-      ctx.fillStyle = '#f0f0f0';
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-      ctx.fillStyle = '#888';
-      ctx.textAlign = 'center';
-      ctx.fillText('Loading image...', canvasWidth / 2, canvasHeight / 2);
-    }
-
-    drawExistingMappings(ctx, scaleX, scaleY);
-
-    if (isPolygonMode) {
-      drawCurrentPolygon(ctx, scaleX, scaleY);
-    } else {
-      if (selectedMapping) {
-        const mapping = characterMappings.find(m => m.id === selectedMapping);
-        if (mapping) {
+    if (!canvas || !ctx || !imageRef.current) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw image
+    ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
+    
+    // Get scale factors for mappings
+    const imgWidth = selectedImage?.width || imageRef.current.naturalWidth;
+    const imgHeight = selectedImage?.height || imageRef.current.naturalHeight;
+    const scaleX = canvas.width / imgWidth;
+    const scaleY = canvas.height / imgHeight;
+    
+    // Draw all mappings
+    if (selectedImage) {
+      characterMappings
+        .filter(mapping => mapping.sourceImageId === selectedImage.id)
+        .forEach(mapping => {
+          const isSelected = mapping.id === selectedMapping;
+          
           if (mapping.isPolygon && mapping.polygonPoints) {
-            drawPolygon(ctx, mapping.polygonPoints, scaleX, scaleY, true);
+            // Draw polygon mapping
+            const scaledPoints = mapping.polygonPoints.map(p => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }));
             
-            if (mapping.char && mapping.polygonPoints.length > 0) {
-              const firstPoint = mapping.polygonPoints[0];
-              ctx.fillStyle = 'rgba(62, 116, 245, 0.9)';
-              ctx.font = '12px sans-serif';
-              ctx.fillText(mapping.char, firstPoint.x * scaleX + 2, firstPoint.y * scaleY + 12);
+            if (scaledPoints.length < 3) return;
+            
+            // Draw polygon
+            ctx.beginPath();
+            ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+            for (let i = 1; i < scaledPoints.length; i++) {
+              ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
             }
+            ctx.closePath();
+            
+            ctx.strokeStyle = isSelected ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 200, 0, 0.7)';
+            ctx.lineWidth = isSelected ? 3 : 2;
+            ctx.stroke();
+            
+            ctx.fillStyle = isSelected ? 'rgba(255, 0, 0, 0.2)' : 'rgba(0, 200, 0, 0.2)';
+            ctx.fill();
+            
+            // Draw character label at first point
+            const firstPoint = scaledPoints[0];
+            ctx.fillStyle = isSelected ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 200, 0, 0.8)';
+            ctx.fillRect(firstPoint.x - 10, firstPoint.y - 25, 30, 20);
+            ctx.fillStyle = 'white';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(mapping.char, firstPoint.x + 5, firstPoint.y - 10);
           } else {
-            drawSelectedMapping(ctx, mapping, scaleX, scaleY);
+            // Draw rectangle mapping
+            const x = mapping.x1 * scaleX;
+            const y = mapping.y1 * scaleY;
+            const width = (mapping.x2 - mapping.x1) * scaleX;
+            const height = (mapping.y2 - mapping.y1) * scaleY;
+            
+            ctx.strokeStyle = isSelected ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 200, 0, 0.7)';
+            ctx.lineWidth = isSelected ? 3 : 2;
+            ctx.strokeRect(x, y, width, height);
+            
+            // Draw character label
+            ctx.fillStyle = isSelected ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 200, 0, 0.8)';
+            ctx.fillRect(x, y - 25, 30, 20);
+            ctx.fillStyle = 'white';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(mapping.char, x + 15, y - 10);
           }
+        });
+    }
+    
+    // Draw current selection rectangle (if drawing)
+    if (isDrawing) {
+      const x = Math.min(startPoint.x, endPoint.x);
+      const y = Math.min(startPoint.y, endPoint.y);
+      const width = Math.abs(endPoint.x - startPoint.x);
+      const height = Math.abs(endPoint.y - startPoint.y);
+      
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(x, y, width, height);
+      ctx.setLineDash([]);
+    }
+    
+    // Draw current polygon (in polygon mode)
+    if (isPolygonMode && polygonPoints.length > 0) {
+      // Draw connecting lines between points
+      if (polygonPoints.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y);
+        
+        for (let i = 1; i < polygonPoints.length; i++) {
+          ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y);
+        }
+        
+        // Close the polygon if 3+ points
+        if (polygonPoints.length >= 3) {
+          ctx.closePath();
+        }
+        
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Fill polygon if it has 3+ points
+        if (polygonPoints.length >= 3) {
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+          ctx.fill();
         }
       }
-
-      if (isDrawing) {
-        drawSelectionRect(ctx, scaleX, scaleY);
+      
+      // Draw each point
+      const pointSize = 8;
+      polygonPoints.forEach((point, index) => {
+        ctx.fillStyle = index === selectedPointIndex ? 'yellow' : 'red';
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, pointSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw point numbers
+        ctx.fillStyle = 'white';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(index + 1), point.x, point.y);
+      });
+      
+      // Add helpful instruction overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(10, 10, 400, 30);
+      ctx.fillStyle = 'white';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      
+      if (isAddingPoints) {
+        ctx.fillText(`Click to add points (${polygonPoints.length} so far). Need at least 3.`, 20, 25);
+      } else {
+        ctx.fillText('Click points to select/move them. Press "Add Points" to continue.', 20, 25);
       }
     }
-  }, [
-    isDrawing, 
-    selectedMapping, 
-    characterMappings, 
-    scaleFactors,
-    drawExistingMappings, 
-    drawSelectedMapping, 
-    drawSelectionRect,
-    isPolygonMode,
-    drawCurrentPolygon,
-    drawPolygon
-  ]);
+  };
+
+  const [imageLoading, setImageLoading] = useState(false);
 
   useEffect(() => {
     if (selectedImage && canvasRef.current && imageContainerRef.current) {
@@ -426,21 +506,28 @@ const CharacterMapper: React.FC = () => {
       const container = imageContainerRef.current;
       let isMounted = true;
 
+      setImageLoading(true);
       const img = new window.Image();
       img.onload = () => {
         if (!isMounted || !container || !selectedImage) return;
 
+        // Use the full container width for the image display
         const containerWidth = container.clientWidth;
         const originalWidth = selectedImage.width || img.naturalWidth;
         const originalHeight = selectedImage.height || img.naturalHeight;
 
-        if (!selectedImage.width || !selectedImage.height) {
-           console.warn('Updating image dimensions on the fly - should be pre-populated');
-        }
-
+        // Maintain aspect ratio but use full size
         const aspectRatio = originalWidth > 0 && originalHeight > 0 ? originalWidth / originalHeight : 1;
-        let drawWidth = containerWidth;
-        let drawHeight = containerWidth / aspectRatio;
+        
+        // Allow the image to display at its natural size without forced scaling
+        let drawWidth = originalWidth;
+        let drawHeight = originalHeight;
+        
+        // Only scale down if larger than container
+        if (drawWidth > containerWidth) {
+          drawWidth = containerWidth;
+          drawHeight = drawWidth / aspectRatio;
+        }
         
         if (!Number.isFinite(drawWidth) || !Number.isFinite(drawHeight) || drawWidth <= 0 || drawHeight <= 0) {
             console.error('Invalid calculated canvas dimensions', { drawWidth, drawHeight, aspectRatio });
@@ -451,25 +538,34 @@ const CharacterMapper: React.FC = () => {
         canvas.width = drawWidth;
         canvas.height = drawHeight;
         
-        const scaleX = originalWidth > 0 ? drawWidth / originalWidth : 1;
-        const scaleY = originalHeight > 0 ? drawHeight / originalHeight : 1;
+        // Calculate scale factors based on the original image and canvas size
+        const scaleX = drawWidth / originalWidth;
+        const scaleY = drawHeight / originalHeight;
         
         if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) {
              console.error('Invalid scale factors', { scaleX, scaleY, originalWidth, originalHeight });
              setScaleFactors({ x: 1, y: 1 });
         } else {
+             console.log("Set scale factors:", scaleX, scaleY);
              setScaleFactors({ x: scaleX, y: scaleY });
         }
         
         imageRef.current = img;
-        redrawCanvas();
+        setImageLoading(false);
+        
+        // Use setTimeout to ensure state updates are complete before redraw
+        setTimeout(() => {
+          if (isMounted) {
+            redrawCanvas();
+          }
+        }, 50);
       };
 
       img.onerror = () => {
         console.error("Failed to load image:", selectedImage.url);
         if (isMounted) {
             imageRef.current = null;
-            redrawCanvas();
+            setImageLoading(false);
         }
       };
 
@@ -487,7 +583,24 @@ const CharacterMapper: React.FC = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
     }
-  }, [selectedImage, redrawCanvas]);
+  }, [selectedImage, characterMappings, selectedMapping, drawPolygon]);
+
+  // Add useEffect to handle redrawing when needed
+  useEffect(() => {
+    if (canvasRef.current && imageRef.current) {
+      redrawCanvas();
+    }
+  }, [
+    isDrawing, 
+    isResizing,
+    selectedMapping, 
+    isPolygonMode,
+    startPoint, 
+    endPoint,
+    polygonPoints,
+    scaleFactors,
+    redrawCanvas
+  ]);
 
   const getResizeHandle = (x: number, y: number, rect: { startX: number, startY: number, endX: number, endY: number }): ResizeHandle => {
     const handleSize = 10 / Math.min(scaleFactors.x, scaleFactors.y);
@@ -511,208 +624,310 @@ const CharacterMapper: React.FC = () => {
     return ResizeHandle.None;
   };
 
+  // Check if a point is inside a mapping using canvas coordinates
   const checkExistingMapping = (x: number, y: number): string | null => {
     if (!selectedImage || !canvasRef.current) return null;
     
-    const currentImageMappings = characterMappings.filter((m: CharacterMapping) => m.sourceImageId === selectedImage.id);
-
-    for (const mapping of currentImageMappings) {
-        const rect = { startX: mapping.x1, startY: mapping.y1, endX: mapping.x2, endY: mapping.y2 };
-        if (x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY) {
-            return mapping.id;
+    const canvas = canvasRef.current;
+    const imgWidth = selectedImage.width || (imageRef.current?.naturalWidth || 0);
+    const imgHeight = selectedImage.height || (imageRef.current?.naturalHeight || 0);
+    
+    // Scale factors to convert between stored and canvas coordinates
+    const scaleX = canvas.width / imgWidth;
+    const scaleY = canvas.height / imgHeight;
+    
+    for (const mapping of characterMappings.filter(m => m.sourceImageId === selectedImage.id)) {
+      if (mapping.isPolygon && mapping.polygonPoints) {
+        // Convert polygon points to canvas coordinates
+        const scaledPoints = mapping.polygonPoints.map(p => ({
+          x: p.x * scaleX,
+          y: p.y * scaleY
+        }));
+        
+        if (isPointInPolygon(x, y, scaledPoints)) {
+          return mapping.id;
         }
+      } else {
+        // Rectangle check
+        const rectX = mapping.x1 * scaleX;
+        const rectY = mapping.y1 * scaleY;
+        const rectW = (mapping.x2 - mapping.x1) * scaleX;
+        const rectH = (mapping.y2 - mapping.y1) * scaleY;
+        
+        if (x >= rectX && x <= rectX + rectW && y >= rectY && y <= rectY + rectH) {
+          return mapping.id;
+        }
+      }
     }
     
     return null;
   };
 
-  const getCanvasPoint = (e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement): Point => {
-    const rect = canvas.getBoundingClientRect();
-    const image = imageRef.current;
-
-    if (!image || rect.width === 0 || rect.height === 0) {
-      console.warn("Cannot calculate canvas point accurately: Image or canvas dimensions missing.");
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
-    }
-
-    const originalWidth = image.naturalWidth;
-    const originalHeight = image.naturalHeight;
+  // Check if a point is inside a polygon
+  const isPointInPolygon = (x: number, y: number, polygon: {x: number, y: number}[]): boolean => {
+    if (polygon.length < 3) return false;
     
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
-
-    const x = offsetX * (originalWidth / rect.width);
-    const y = offsetY * (originalHeight / rect.height);
-
-    if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        console.warn("Calculated canvas point is not finite.", { x, y, offsetX, offsetY, originalWidth, originalHeight, rectWidth: rect.width, rectHeight: rect.height });
-        return { x: 0, y: 0 };
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x, yi = polygon[i].y;
+      const xj = polygon[j].x, yj = polygon[j].y;
+      
+      const intersect = ((yi > y) !== (yj > y)) && 
+        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      
+      if (intersect) inside = !inside;
     }
-
-    return { x, y };
+    
+    return inside;
   };
 
+  // Completely reimplemented coordinate mapping functions
+  const getCanvasPoint = (e: React.MouseEvent<HTMLCanvasElement>): Point => {
+    const canvas = e.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Get precise mouse coordinates relative to canvas element
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Convert to canvas coordinate space accounting for any scaling
+    // This is critical when the canvas display size differs from canvas internal dimensions
+    const canvasX = mouseX * (canvas.width / rect.width);
+    const canvasY = mouseY * (canvas.height / rect.height);
+    
+    console.log(`Mouse click - screen: ${e.clientX},${e.clientY} canvas: ${canvasX},${canvasY}`);
+    return { x: canvasX, y: canvasY };
+  };
+
+  // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!selectedImage || !canvasRef.current) return;
+    
+    // Get the raw canvas coordinates where the user clicked
     const canvas = canvasRef.current;
-    if (!canvas || !selectedImage) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     
-    const { x, y } = getCanvasPoint(e, canvas);
+    // Convert to internal canvas coordinates
+    const canvasX = x * (canvas.width / rect.width);
+    const canvasY = y * (canvas.height / rect.height);
     
+    console.log(`Click at (${canvasX}, ${canvasY})`);
+    
+    // Handle polygon mode
     if (isPolygonMode) {
       if (isAddingPoints) {
-        setPolygonPoints([...polygonPoints, { x, y }]);
+        // Add point to the polygon
+        setPolygonPoints(prev => [...prev, { x: canvasX, y: canvasY }]);
+        redrawCanvas();
+      } else if (selectedPointIndex !== null) {
+        setSelectedPointIndex(null);
       } else {
-        const pointIndex = polygonPoints.findIndex(point => 
-          Math.sqrt(Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2)) < 10
-        );
-        
-        if (pointIndex !== -1) {
-          setSelectedPointIndex(pointIndex);
-        } else {
-          setSelectedPointIndex(null);
+        // Check if clicked on an existing polygon point (for moving)
+        for (let i = 0; i < polygonPoints.length; i++) {
+          const point = polygonPoints[i];
+          const distance = Math.sqrt(
+            Math.pow(point.x - canvasX, 2) + 
+            Math.pow(point.y - canvasY, 2)
+          );
           
-          const mappingId = checkExistingMapping(x, y);
-          if (mappingId) {
-            setSelectedMapping(mappingId);
-            const mapping = characterMappings.find(m => m.id === mappingId);
-            if (mapping?.isPolygon && mapping.polygonPoints) {
-              setPolygonPoints(mapping.polygonPoints);
-              setIsPolygonMode(true);
-            }
-          } else if (selectedMapping) {
-            setSelectedMapping(null);
-          } else if (!selectedChar) {
-            setStartPoint({ x, y });
-            setEndPoint({ x, y });
-            setIsDrawing(true);
+          if (distance < 15) { // Larger hit area for easier selection
+            setSelectedPointIndex(i);
+            break;
           }
         }
       }
-      
-      redrawCanvas();
       return;
     }
     
-    if (selectedMapping) {
-      const mapping = characterMappings.find(m => m.id === selectedMapping);
-      if (mapping) {
-        const rect = { 
-          startX: mapping.x1, 
-          startY: mapping.y1, 
-          endX: mapping.x2, 
-          endY: mapping.y2 
-        };
-        
-        const handle = getResizeHandle(x, y, rect);
-        
-        if (handle !== ResizeHandle.None) {
-          setActiveHandle(handle);
-          setIsResizing(true);
-          setLastMousePosition({ x, y });
-          return;
-        }
-      }
-    }
+    // Handle regular rectangle mode
+    const point = { x: canvasX, y: canvasY };
     
-    const mappingId = checkExistingMapping(x, y);
+    // Check if clicked on existing mapping
+    const mappingId = checkExistingMapping(point.x, point.y);
     if (mappingId) {
       setSelectedMapping(mappingId);
+      
+      // Check if it's a polygon mapping and load those points
+      const mapping = characterMappings.find(m => m.id === mappingId);
+      if (mapping?.isPolygon && mapping.polygonPoints && mapping.polygonPoints.length > 0) {
+        // Get scale factors to convert stored points to canvas coordinates
+        const imgWidth = selectedImage.width || (imageRef.current?.naturalWidth || 0);
+        const imgHeight = selectedImage.height || (imageRef.current?.naturalHeight || 0);
+        const scaleX = canvas.width / imgWidth;
+        const scaleY = canvas.height / imgHeight;
+        
+        // Convert normalized points to canvas coordinates
+        const canvasPoints = mapping.polygonPoints.map(p => ({
+          x: p.x * scaleX,
+          y: p.y * scaleY
+        }));
+        
+        setPolygonPoints(canvasPoints);
+        setIsPolygonMode(true);
+        setIsAddingPoints(false);
+      }
     } else if (selectedMapping) {
       setSelectedMapping(null);
     } else if (selectedChar) {
-      setStartPoint({ x, y });
-      setEndPoint({ x, y });
+      // Start drawing a selection rectangle
+      setStartPoint(point);
+      setEndPoint(point);
       setIsDrawing(true);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    
+    // Get the raw canvas coordinates
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     
-    const point = getCanvasPoint(e, canvas);
+    // Convert to internal canvas coordinates
+    const canvasX = x * (canvas.width / rect.width);
+    const canvasY = y * (canvas.height / rect.height);
     
-    if (isPolygonMode) {
-      if (selectedPointIndex !== null) {
-        const newPoints = [...polygonPoints];
-        newPoints[selectedPointIndex] = point;
-        setPolygonPoints(newPoints);
-        redrawCanvas();
-      }
+    const point = { x: canvasX, y: canvasY };
+    
+    // Handle polygon mode - moving points
+    if (isPolygonMode && selectedPointIndex !== null) {
+      const newPoints = [...polygonPoints];
+      newPoints[selectedPointIndex] = point;
+      setPolygonPoints(newPoints);
+      redrawCanvas();
       return;
     }
     
+    // Handle rectangle drawing
     if (isDrawing) {
       setEndPoint(point);
       redrawCanvas();
-    } else if (isResizing && selectedMapping) {
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // For polygon mode, just release selected point
     if (isPolygonMode) {
       setSelectedPointIndex(null);
-      redrawCanvas();
       return;
     }
     
-    const wasDrawing = isDrawing;
-    const wasResizing = isResizing;
-
-    if (isDrawing) {
-      const width = Math.abs(endPoint.x - startPoint.x);
-      const height = Math.abs(endPoint.y - startPoint.y);
-
-      if (width > 5 && height > 5 && selectedChar && currentImageId) {
-        const newMapping: CharacterMapping = {
-          id: `map_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          sourceImageId: currentImageId,
-          char: selectedChar,
-          x1: Math.min(startPoint.x, endPoint.x),
-          y1: Math.min(startPoint.y, endPoint.y),
-          x2: Math.max(startPoint.x, endPoint.x),
-          y2: Math.max(startPoint.y, endPoint.y),
-        };
-        addCharacterMapping(newMapping);
-        setSelectedMapping(newMapping.id);
-        setSelectedChar(null);
-      } else if (selectedChar) {
-          setSelectedChar(null);
-      }
+    // For rectangle mode, finish drawing
+    if (!isDrawing || !canvasRef.current || !selectedChar || !currentImageId) {
+      setIsDrawing(false);
+      return;
     }
-
-    setIsDrawing(false);
-    setIsResizing(false);
-    setActiveHandle(ResizeHandle.None);
-
-    if (wasDrawing || wasResizing) {
-      redrawCanvas(); 
-    }
-  };
-
-  const handleMouseLeave = () => {
-      if (isDrawing || isResizing) {
-          setIsDrawing(false);
-          setIsResizing(false);
-          setActiveHandle(ResizeHandle.None);
-          redrawCanvas();
-      }
-  };
-
-  const handleCharSelect = (char: string) => {
-    setSelectedChar(char);
-    setSelectedMapping(null);
-    redrawCanvas();
     
-    toast(`Selected character: ${char}`, {
-      position: "top-center",
-      duration: 2000,
-    });
+    setIsDrawing(false);
+    
+    // Only create mapping if rectangle is big enough
+    if (Math.abs(startPoint.x - endPoint.x) > 5 && Math.abs(startPoint.y - endPoint.y) > 5) {
+      const canvas = canvasRef.current;
+      const imgWidth = selectedImage?.width || (imageRef.current?.naturalWidth || 0);
+      const imgHeight = selectedImage?.height || (imageRef.current?.naturalHeight || 0);
+      
+      // Convert canvas coordinates to normalized image coordinates
+      const normX1 = Math.min(startPoint.x, endPoint.x) / canvas.width * imgWidth;
+      const normY1 = Math.min(startPoint.y, endPoint.y) / canvas.height * imgHeight;
+      const normX2 = Math.max(startPoint.x, endPoint.x) / canvas.width * imgWidth;
+      const normY2 = Math.max(startPoint.y, endPoint.y) / canvas.height * imgHeight;
+      
+      addCharacterMapping({
+        sourceImageId: currentImageId,
+        char: selectedChar,
+        x1: normX1,
+        y1: normY1,
+        x2: normX2,
+        y2: normY2,
+        originalImageWidth: imgWidth,
+        originalImageHeight: imgHeight
+      });
+      
+      toast.success(`Mapped character '${selectedChar}'`);
+      selectNextUnmappedChar();
+    }
+    
+    redrawCanvas();
   };
 
+  // Save polygon mapping
+  const savePolygon = () => {
+    if (polygonPoints.length < 3 || !selectedChar || !currentImageId || !canvasRef.current) {
+      toast.error("Need at least 3 points and a selected character to create a polygon mapping");
+      return;
+    }
+    
+    const canvas = canvasRef.current;
+    const imgWidth = selectedImage?.width || (imageRef.current?.naturalWidth || 0);
+    const imgHeight = selectedImage?.height || (imageRef.current?.naturalHeight || 0);
+    
+    // Convert canvas points to normalized coordinates for storage
+    const normalizedPoints = polygonPoints.map(p => ({
+      x: p.x / canvas.width * imgWidth,
+      y: p.y / canvas.height * imgHeight
+    }));
+    
+    // Calculate bounding box
+    const { minX, minY, maxX, maxY } = calculateBoundingBox(normalizedPoints);
+    
+    // Create the mapping
+    addCharacterMapping({
+      sourceImageId: currentImageId,
+      char: selectedChar,
+      x1: minX,
+      y1: minY,
+      x2: maxX,
+      y2: maxY,
+      originalImageWidth: imgWidth,
+      originalImageHeight: imgHeight,
+      isPolygon: true,
+      polygonPoints: normalizedPoints
+    });
+    
+    toast.success(`Mapped character '${selectedChar}' with polygon`);
+    
+    // Reset state
+    const nextChar = selectNextUnmappedChar();
+    if (nextChar) {
+      setPolygonPoints([]);
+    } else {
+      setIsPolygonMode(false);
+      setPolygonPoints([]);
+      setIsAddingPoints(false);
+    }
+  };
+
+  // Handle character selection
+  const handleCharSelect = (char: string) => {
+    if (selectedChar === char) {
+      setSelectedChar(null);
+    } else {
+      setSelectedChar(char);
+      setSelectedMapping(null);
+      redrawCanvas();
+      
+      toast(`Selected character: ${char}`, {
+        position: "top-center",
+        duration: 2000,
+      });
+    }
+  };
+
+  // Select next unmapped character
+  const selectNextUnmappedChar = () => {
+    if (unmappedChars.size > 0) {
+      const nextChar = Array.from(unmappedChars)[0];
+      setSelectedChar(nextChar);
+      return nextChar;
+    }
+    return null;
+  };
+
+  // Handle character deletion
   const handleCharDelete = (mappingId: string) => {
     removeCharacterMapping(mappingId);
     if (selectedMapping === mappingId) {
@@ -721,13 +936,37 @@ const CharacterMapper: React.FC = () => {
     redrawCanvas();
   };
 
-  useEffect(() => {
-    toast.info("Character mapper initialized", {
-      description: "Click a mapped character to unmap it",
-      duration: 3000,
-    });
-  }, []);
+  // Toggle polygon mode
+  const togglePolygonMode = () => {
+    // If switching from polygon to rectangle mode
+    if (isPolygonMode) {
+      if (polygonPoints.length > 0 && selectedChar) {
+        if (confirm("You have unsaved polygon points. Save them before switching modes?")) {
+          savePolygon();
+        } else {
+          setPolygonPoints([]);
+        }
+      }
+      setIsPolygonMode(false);
+      setIsAddingPoints(false);
+    } else {
+      // Switching from rectangle to polygon mode
+      setIsPolygonMode(true);
+      setIsAddingPoints(true);
+      setPolygonPoints([]);
+      if (selectedMapping) {
+        setSelectedMapping(null);
+      }
+    }
+    // Force a redraw after mode change
+    setTimeout(redrawCanvas, 50);
+  };
 
+  // Auto detection handler
+  const toggleAutoDetection = () => {
+    setShowAutoDetection(!showAutoDetection);
+  };
+  
   const handleAutoMappedCharacters = (mappings: Record<string, any>) => {
     Object.entries(mappings).forEach(([char, mapping]) => {
       const newMapping: CharacterMapping = {
@@ -749,14 +988,6 @@ const CharacterMapper: React.FC = () => {
     
     toast.success(`Added ${Object.keys(mappings).length} character mappings`);
   };
-  
-  const toggleAutoDetection = () => {
-    setShowAutoDetection(!showAutoDetection);
-  };
-  
-  useEffect(() => {
-    setShowAutoDetection(false);
-  }, [currentImageId]);
 
   if (sourceImages.length === 0 || !sourceImages.some(img => img.selected)) {
     return (
@@ -928,28 +1159,7 @@ const CharacterMapper: React.FC = () => {
                   <Button
                     size="sm"
                     variant={isPolygonMode ? "primary" : "outline"}
-                    onClick={() => {
-                      setIsPolygonMode(!isPolygonMode);
-                      if (!isPolygonMode) {
-                        if (selectedMapping) {
-                          const mapping = characterMappings.find(m => m.id === selectedMapping);
-                          if (mapping) {
-                            const { x1, y1, x2, y2 } = mapping;
-                            setPolygonPoints([
-                              { x: x1, y: y1 },
-                              { x: x2, y: y1 },
-                              { x: x2, y: y2 },
-                              { x: x1, y: y2 }
-                            ]);
-                          }
-                        } else {
-                          setPolygonPoints([]);
-                        }
-                        setIsAddingPoints(true);
-                      } else {
-                        setIsAddingPoints(false);
-                      }
-                    }}
+                    onClick={togglePolygonMode}
                     className="flex items-center gap-1"
                     title={isPolygonMode ? "Switch to rectangle mode" : "Switch to polygon mode"}
                   >
@@ -984,29 +1194,7 @@ const CharacterMapper: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          if (polygonPoints.length > 2 && selectedChar && currentImageId) {
-                            const boundingBox = calculateBoundingBox(polygonPoints);
-                            const newMapping: CharacterMapping = {
-                              id: `map_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                              sourceImageId: currentImageId,
-                              char: selectedChar,
-                              x1: boundingBox.minX,
-                              y1: boundingBox.minY,
-                              x2: boundingBox.maxX,
-                              y2: boundingBox.maxY,
-                              polygonPoints: [...polygonPoints],
-                              isPolygon: true
-                            };
-                            addCharacterMapping(newMapping);
-                            setSelectedMapping(newMapping.id);
-                            setSelectedChar(null);
-                            setPolygonPoints([]);
-                            setIsAddingPoints(false);
-                          } else {
-                            toast.error("Need at least 3 points and a selected character to create a polygon mapping");
-                          }
-                        }}
+                        onClick={savePolygon}
                         disabled={polygonPoints.length < 3 || !selectedChar}
                         title="Save polygon mapping"
                       >
@@ -1021,7 +1209,12 @@ const CharacterMapper: React.FC = () => {
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseLeave}
+                  onMouseLeave={() => {
+                    if (isDrawing) {
+                      setIsDrawing(false);
+                      redrawCanvas();
+                    }
+                  }}
                   className="max-w-full max-h-[600px] object-contain cursor-crosshair"
                 />
               </div>
