@@ -501,6 +501,71 @@ const CharacterAlignment: React.FC = () => {
     toast.success(`Aligned '${selectedChar}' to baseline`);
   };
   
+  // --- Automation: Balance Font ---
+  const balanceFont = () => {
+    // 1. Align all to baseline
+    const newCharPositions = { ...charPositions };
+    Object.keys(allCharsRef.current).forEach(char => {
+      newCharPositions[char] = { x: 0, y: fontAdjustments.baselineOffset };
+    });
+
+    // 2. Normalize x-height for lowercase letters
+    const lowerCaseHeights = lowerCaseChars.split('').map(char => allCharsRef.current[char]?.height).filter(Boolean);
+    const avgXHeight = lowerCaseHeights.length > 0 ? lowerCaseHeights.reduce((a, b) => a + b, 0) / lowerCaseHeights.length : null;
+    if (avgXHeight) {
+      lowerCaseChars.split('').forEach(char => {
+        if (allCharsRef.current[char]) {
+          // Adjust y so that the bottom of the char aligns with baseline and height matches avgXHeight
+          // (Assume y=0 is baseline, so y = baseline - (height - avgXHeight))
+          const diff = allCharsRef.current[char].height - avgXHeight;
+          newCharPositions[char] = { x: 0, y: fontAdjustments.baselineOffset + diff / 2 };
+        }
+      });
+    }
+
+    // 3. Generate default kerning pairs (simple AV, To, etc.)
+    const defaultKerningPairs = {
+      'AV': -2,
+      'To': -1,
+      'Wa': -1,
+      'Yo': -1,
+      'LT': -1,
+      'FA': -1,
+      'PA': -1,
+      'Ta': -1,
+      'LA': -1,
+      'VA': -2,
+      'AT': -1,
+      'LY': -1,
+      'Ty': -1,
+      'AY': -1,
+      'AW': -1,
+      'YA': -1,
+      'OV': -1,
+      'OA': -1,
+      'OO': -1,
+      'OP': -1,
+      'OC': -1,
+      'OG': -1,
+      'QO': -1,
+      'QY': -1,
+      'QW': -1,
+      'QJ': -1,
+      'QG': -1,
+      'QH': -1,
+      'QK': -1,
+      'QZ': -1,
+      'QX': -1,
+      'QF': -1
+    };
+    updateFontAdjustments({
+      charPositions: newCharPositions,
+      kerningPairs: defaultKerningPairs
+    });
+    setCharPositions(newCharPositions);
+    toast.success('Font balanced: baseline, x-height, and kerning applied!');
+  };
+  
   // Component for character sets
   const CharacterSetSelector = ({ title, chars }: { title: string, chars: string }) => (
     <div className="mt-2">
@@ -556,6 +621,13 @@ const CharacterAlignment: React.FC = () => {
             onClick={resetAllPositions}
           >
             Reset All
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={balanceFont}
+          >
+            Balance Font
           </Button>
         </div>
       </div>
