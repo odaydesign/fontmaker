@@ -1,0 +1,11 @@
+{
+  "letterSpacing": -23,
+  "baselineOffset": 35,
+  "charWidth": 92,
+  "kerningPairs": {},
+  "charAdjustments": {
+    "A": {
+      "baselineOffset": -50
+    }
+  }
+}

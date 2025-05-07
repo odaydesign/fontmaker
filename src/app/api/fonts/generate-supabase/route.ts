@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateFont } from '@/services/fontGeneratorSupabase';
 import { generateFontId } from '@/utils/helpers';
-import { supabase } from '@/lib/supabase';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    let userId: string | undefined = undefined;
+    // Authenticate the user
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
     
-    // Check for authenticated user with Supabase
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session?.user) {
-      userId = sessionData.session.user.id;
-    }
-
+    // Authentication is now optional
+    // if (!userId) {
+    //   return NextResponse.json(
+    //     { error: 'Authentication required' },
+    //     { status: 401 }
+    //   );
+    // }
+    
     const body = await request.json();
-    const { characterMappings, sourceImages, metadata, format = 'ttf' } = body;
+    const { characterMappings, sourceImages, metadata, format = 'ttf', adjustments } = body;
     
     if (!characterMappings || !sourceImages || !metadata) {
       return NextResponse.json(
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    if (Object.keys(characterMappings).length === 0) {
+    if (characterMappings.length === 0) {
       return NextResponse.json(
         { error: 'No character mappings provided' },
         { status: 400 }
@@ -33,6 +38,14 @@ export async function POST(request: NextRequest) {
     // Generate a unique ID for this font
     const fontId = generateFontId();
     
+    // Process the adjustments if they exist
+    const fontAdjustments = adjustments ? {
+      letterSpacing: adjustments.letterSpacing ?? 0,
+      baselineOffset: adjustments.baselineOffset ?? 0, 
+      charWidth: adjustments.charWidth ?? 100,
+      kerningPairs: adjustments.kerningPairs ?? {},
+    } : undefined;
+    
     // Process the images and generate the font
     const result = await generateFont({
       characterMappings,
@@ -40,7 +53,8 @@ export async function POST(request: NextRequest) {
       metadata,
       format,
       fontId,
-      userId,
+      userId, // This will be undefined for non-authenticated users
+      adjustments: fontAdjustments,
     });
     
     if (!result.success) {
@@ -50,13 +64,12 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Return success response with download URL
     return NextResponse.json({
       success: true,
       fontId,
       downloadUrl: `/api/fonts/download-supabase/${fontId}?format=${format}`,
       metadata: result.metadata,
-      isAuthenticated: !!userId,
+      isAuthenticated: !!userId, // Return auth state to the client
     });
   } catch (error) {
     console.error('Error generating font:', error);

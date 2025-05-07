@@ -4,15 +4,14 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import ImageUploader from '@/components/tools/ImageUploader';
 import CharacterMapper from '@/components/tools/CharacterMapper';
-import FontTester from '@/components/tools/FontTester';
+import CharacterAlignment from '@/components/tools/CharacterAlignment';
 import FontDownloader from '@/components/tools/FontDownloader';
 import { useFont } from '@/context/FontContext';
 
 export default function CreatePage() {
   const { sourceImages, characterMappings, metadata, updateMetadata } = useFont();
   const [currentStep, setCurrentStep] = useState(1);
-  const [activeTab, setActiveTab] = useState('test');
-  const totalSteps = 4;
+  const totalSteps = 5;
   
   const handleNext = () => {
     if (currentStep < totalSteps) {
@@ -30,10 +29,12 @@ export default function CreatePage() {
   const canProceed = () => {
     switch (currentStep) {
       case 1: // Image upload
-        return Object.keys(sourceImages).length > 0;
+        return sourceImages.length > 0;
       case 2: // Character mapping
-        return Object.keys(characterMappings).length > 0;
-      case 3: // Metadata/info
+        return characterMappings.length > 0;
+      case 3: // Character alignment
+        return true; // Always allow proceeding from alignment
+      case 4: // Metadata/info
         return metadata.name.trim() !== '' && metadata.author?.trim() !== '';
       default:
         return true;
@@ -72,6 +73,20 @@ export default function CreatePage() {
           </>
         );
       case 3:
+        return (
+          <>
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold">Align & Adjust Characters</h2>
+              <p className="text-sm text-gray-500">
+                Fine-tune positioning, spacing, and kerning for your font characters.
+              </p>
+            </div>
+            <div className="p-6">
+              <CharacterAlignment />
+            </div>
+          </>
+        );
+      case 4:
         return (
           <>
             <div className="p-6 border-b">
@@ -120,39 +135,18 @@ export default function CreatePage() {
             </div>
           </>
         );
-      case 4:
+      case 5:
         return (
           <>
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold">Test & Generate</h2>
+              <h2 className="text-xl font-bold">Generate Font</h2>
               <p className="text-sm text-gray-500">
-                Test your font with a sample text and generate the final font file.
+                Generate and download your font file.
               </p>
             </div>
             <div className="p-6">
               <div className="mb-6">
-                <div className="flex border-b mb-4">
-                  <button
-                    className={`py-2 px-4 ${activeTab === 'test' ? 'border-b-2 border-blue-500' : ''}`}
-                    onClick={() => setActiveTab('test')}
-                  >
-                    Test Font
-                  </button>
-                  <button
-                    className={`py-2 px-4 ${activeTab === 'download' ? 'border-b-2 border-blue-500' : ''}`}
-                    onClick={() => setActiveTab('download')}
-                  >
-                    Generate & Download
-                  </button>
-                </div>
-                <div>
-                  <div className={activeTab === 'test' ? 'block' : 'hidden'}>
-                    <FontTester />
-                  </div>
-                  <div className={activeTab === 'download' ? 'block' : 'hidden'}>
-                    <FontDownloader />
-                  </div>
-                </div>
+                <FontDownloader />
               </div>
             </div>
           </>

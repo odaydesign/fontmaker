@@ -11,8 +11,8 @@ interface FontFormat {
 }
 
 interface FontDownloaderProps {
-  characterMappings?: Record<string, { x: number; y: number; width: number; height: number }>;
-  sourceImages?: { [key: string]: string };
+  characterMappings?: any[];
+  sourceImages?: any[];
   metadata?: {
     name: string;
     author: string;
@@ -25,7 +25,12 @@ export default function FontDownloader({
   sourceImages: propSourceImages,
   metadata: propMetadata,
 }: FontDownloaderProps) {
-  const { metadata: contextMetadata, characterMappings: contextCharacterMappings, sourceImages: contextSourceImages } = useFont();
+  const { 
+    metadata: contextMetadata, 
+    characterMappings: contextCharacterMappings, 
+    sourceImages: contextSourceImages,
+    fontAdjustments
+  } = useFont();
   
   // Use props if provided, otherwise fall back to context
   const characterMappings = propCharacterMappings || contextCharacterMappings;
@@ -50,8 +55,8 @@ export default function FontDownloader({
   };
 
   const hasRequiredFields = () => {
-    return characterMappings && Object.keys(characterMappings).length > 0 &&
-           sourceImages && Object.keys(sourceImages).length > 0 &&
+    return characterMappings && characterMappings.length > 0 &&
+           sourceImages && sourceImages.length > 0 &&
            metadata && metadata.name && metadata.author;
   };
 
@@ -80,6 +85,7 @@ export default function FontDownloader({
           sourceImages,
           metadata,
           format: selectedFormat,
+          adjustments: fontAdjustments, // Include font adjustments
         }),
       });
       
@@ -159,6 +165,21 @@ export default function FontDownloader({
             Download Font
           </Button>
         )}
+      </div>
+
+      {/* Add a note about adjustments */}
+      <div className="bg-blue-50 border border-blue-100 rounded-md p-3 text-sm text-blue-700">
+        <p><strong>Note:</strong> Your font will be generated with all the adjustments you've made:</p>
+        <ul className="list-disc pl-5 mt-1 space-y-1">
+          <li>Letter Spacing: {fontAdjustments.letterSpacing}</li>
+          <li>Character Width: {fontAdjustments.charWidth}%</li>
+          <li>Baseline Offset: {fontAdjustments.baselineOffset}</li>
+          {Object.keys(fontAdjustments.kerningPairs).length > 0 && (
+            <li>
+              Custom Kerning Pairs: {Object.keys(fontAdjustments.kerningPairs).length} pair{Object.keys(fontAdjustments.kerningPairs).length !== 1 ? 's' : ''}
+            </li>
+          )}
+        </ul>
       </div>
       
       {notification && (

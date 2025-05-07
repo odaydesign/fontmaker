@@ -1,0 +1,22 @@
+[
+  {
+    "id": "char_1745524060230_mzkncwv",
+    "sourceImageId": "img_1745524046818_r2tw1bi",
+    "char": "A",
+    "x1": 120,
+    "y1": 134,
+    "x2": 240,
+    "y2": 288,
+    "isPolygon": false
+  },
+  {
+    "id": "char_1745524060230_vk9ptjp",
+    "sourceImageId": "img_1745524046818_r2tw1bi",
+    "char": "B",
+    "x1": 296,
+    "y1": 134,
+    "x2": 398,
+    "y2": 288,
+    "isPolygon": false
+  }
+]

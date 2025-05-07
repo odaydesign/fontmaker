@@ -9,7 +9,7 @@ import {
   getFontStoragePath,
   saveImageFromDataURL
 } from '@/utils/helpers';
-import { SourceImage, CharacterMapping, FontMetadata } from '@/context/FontContext';
+import { SourceImage, CharacterMapping, FontMetadata, FontAdjustments } from '@/context/FontContext';
 import * as supabaseStorage from '@/services/supabaseStorage';
 
 interface FontGenerationRequest {
@@ -19,6 +19,7 @@ interface FontGenerationRequest {
   format: string;
   fontId: string;
   userId?: string;
+  adjustments?: FontAdjustments;
 }
 
 interface FontGenerationResult {
@@ -40,7 +41,7 @@ interface FontRetrievalResult {
  * Generates a font based on character mappings and source images
  */
 export async function generateFont(request: FontGenerationRequest): Promise<FontGenerationResult> {
-  const { characterMappings, sourceImages, metadata, format, fontId, userId } = request;
+  const { characterMappings, sourceImages, metadata, format, fontId, userId, adjustments } = request;
   
   try {
     // 1. Create a temporary directory for processing
@@ -65,7 +66,14 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
       format,
     }, null, 2));
     
-    // 4. Save source images locally for processing
+    // 4. Save font adjustments if provided
+    let adjustmentsPath = '';
+    if (adjustments) {
+      adjustmentsPath = path.join(fontProjectPath, 'adjustments.json');
+      fs.writeFileSync(adjustmentsPath, JSON.stringify(adjustments, null, 2));
+    }
+    
+    // 5. Save source images locally for processing
     const sourceImageMap = new Map<string, string>();
     for (const image of sourceImages) {
       const imageFileName = `image_${image.id}.png`;
@@ -79,7 +87,7 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
       }
     }
     
-    // 5. Extract and process character images
+    // 6. Extract and process character images
     const characterData = [];
     const dbCharMappings = [];
     
@@ -152,11 +160,11 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
       });
     }
     
-    // 6. Save character mapping data
+    // 7. Save character mapping data
     const charMapPath = path.join(fontProjectPath, 'charmap.json');
     fs.writeFileSync(charMapPath, JSON.stringify(characterData, null, 2));
     
-    // 7. Generate the font file
+    // 8. Generate the font file
     const fontFileName = `${metadata.name.replace(/\s+/g, '_').toLowerCase()}.${format}`;
     const fontFilePath = path.join(outputPath, fontFileName);
     
@@ -165,14 +173,15 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
       charMapPath,
       path.join(outputPath, metadata.name.replace(/\s+/g, '_').toLowerCase()),
       metadata.name,
-      format
+      format,
+      adjustmentsPath || undefined
     );
     
     if (!fontResult.success) {
       throw new Error(fontResult.error || 'Failed to generate font file');
     }
     
-    // 8. Upload to Supabase Storage if userId is provided
+    // 9. Upload to Supabase Storage if userId is provided
     let fontFileUrl = '';
     
     if (userId) {
@@ -189,7 +198,7 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
       }
     }
     
-    // 9. Store in Supabase database if userId is provided
+    // 10. Store in Supabase database if userId is provided
     if (userId) {
       try {
         // Create font record
@@ -239,8 +248,8 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
               y2: mapping.y2,
               original_image_width: mapping.originalImageWidth,
               original_image_height: mapping.originalImageHeight,
-              char_image_url: mapping.charImageUrl,
-              char_image_path: mapping.charImagePath,
+              character_image_url: mapping.charImageUrl,
+              character_image_path: mapping.charImagePath,
               source_image_id: mapping.sourceImageId,
             }))
           );
@@ -248,50 +257,32 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
         if (mappingsError) {
           console.error('Error creating character mappings records:', mappingsError);
         }
-        
-        // Create tags if provided
-        if (metadata.tags && metadata.tags.length > 0) {
-          const { error: tagsError } = await supabase
-            .from('font_tags')
-            .insert(
-              metadata.tags.map(tag => ({
-                font_id: fontId,
-                name: tag,
-              }))
-            );
-            
-          if (tagsError) {
-            console.error('Error creating font tags:', tagsError);
-          }
-        }
       } catch (dbError) {
         console.error('Database error:', dbError);
-        // Continue processing even if DB fails
+        // Don't fail the entire process if database operations fail
       }
     }
     
     return {
       success: true,
-      fontId,
       metadata: {
-        fontName: metadata.name,
+        name: metadata.name,
         format,
-        createdAt: new Date().toISOString(),
-        characterCount: characterMappings.length,
-        url: fontFileUrl || `/api/fonts/download/${fontId}?format=${format}`,
-      }
+        characters: characterMappings.length,
+      },
+      fontId,
     };
   } catch (error) {
     console.error('Error generating font:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Font generation failed'
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }
 
 /**
- * Extracts a character from a source image using Sharp
+ * Extract a character from a source image
  */
 async function extractCharacter(
   sourcePath: string,
@@ -302,193 +293,184 @@ async function extractCharacter(
   y2: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Calculate width and height
-    const width = x2 - x1;
-    const height = y2 - y1;
+    const width = Math.round(x2 - x1);
+    const height = Math.round(y2 - y1);
     
     if (width <= 0 || height <= 0) {
-      return { 
-        success: false, 
-        error: `Invalid dimensions: width=${width}, height=${height}` 
+      return {
+        success: false,
+        error: `Invalid dimensions: ${width}x${height}`,
       };
     }
     
-    // Read the source image
     await sharp(sourcePath)
-      // Extract the region
-      .extract({ 
-        left: Math.round(x1), 
-        top: Math.round(y1), 
-        width: Math.round(width), 
-        height: Math.round(height) 
+      .extract({
+        left: Math.round(x1),
+        top: Math.round(y1),
+        width,
+        height,
       })
-      // Process the image for better font rendering
-      .threshold(150) // Convert to black and white with threshold
-      .png() // Output as PNG
       .toFile(outputPath);
     
     return { success: true };
   } catch (error) {
-    console.error('Error extracting character:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Character extraction failed' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error extracting character',
     };
   }
 }
 
 /**
- * Generates a font file from the extracted characters using FontForge
+ * Generate a font file using FontForge
  */
 async function generateFontFile(
   charMapPath: string,
   outputPath: string,
   fontName: string,
-  format: string
+  format: string,
+  adjustmentsPath?: string
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     try {
-      // FontForge script path
-      const scriptPath = process.env.FONTFORGE_SCRIPT_PATH || path.resolve('./scripts/generate_font.py');
+      const scriptPath = path.resolve('./scripts/generate_font.py');
       
-      // Check if script exists
+      // Verify the script exists
       if (!fs.existsSync(scriptPath)) {
-        // For testing/development, use a placeholder font
-        const placeholderFontPath = path.join(process.cwd(), 'public', 'demo-fonts', `placeholder.${format}`);
-        if (fs.existsSync(placeholderFontPath)) {
-          fs.copyFileSync(placeholderFontPath, `${outputPath}.${format}`);
-          return resolve({ success: true });
-        } else {
-          return resolve({
-            success: false,
-            error: `FontForge script not found at ${scriptPath} and no placeholder font available`
-          });
-        }
+        return resolve({
+          success: false,
+          error: `Font generation script not found at ${scriptPath}`,
+        });
       }
       
-      // Execute the FontForge script
-      const fontforgeProcess = spawn('fontforge', [
+      console.log(`
+==== FONT GENERATION REQUEST ====
+Script path: ${scriptPath}
+Char map: ${charMapPath}
+Output path: ${outputPath}
+Font name: ${fontName}
+Format: ${format}
+Adjustments path: ${adjustmentsPath || 'none'}
+      `);
+      
+      // Verify the adjustments file exists if provided
+      if (adjustmentsPath && !fs.existsSync(adjustmentsPath)) {
+        console.warn(`Warning: Adjustments file not found at ${adjustmentsPath}`);
+      }
+      
+      // Build arguments array
+      const args = [
         '-script',
         scriptPath,
         charMapPath,
         outputPath,
         fontName,
-        format
-      ]);
+        format,
+      ];
+      
+      // Add adjustments path if provided
+      if (adjustmentsPath) {
+        args.push(adjustmentsPath);
+        console.log(`Applying adjustments from: ${adjustmentsPath}`);
+        try {
+          const adjustmentsData = JSON.parse(fs.readFileSync(adjustmentsPath, 'utf8'));
+          console.log('Adjustments data:', JSON.stringify(adjustmentsData, null, 2));
+        } catch (e) {
+          console.error('Error reading adjustments file:', e);
+        }
+      }
+      
+      console.log(`Executing command: fontforge ${args.join(' ')}`);
+      
+      // Spawn FontForge process
+      const fontForgeProcess = spawn('fontforge', args);
       
       let stdout = '';
       let stderr = '';
       
-      fontforgeProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
+      fontForgeProcess.stdout.on('data', (data) => {
+        const output = data.toString();
+        stdout += output;
+        console.log(`FontForge output: ${output}`);
       });
       
-      fontforgeProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
+      fontForgeProcess.stderr.on('data', (data) => {
+        const output = data.toString();
+        stderr += output;
+        console.error(`FontForge error: ${output}`);
       });
       
-      fontforgeProcess.on('close', (code) => {
+      fontForgeProcess.on('close', (code) => {
         if (code !== 0) {
           console.error(`FontForge process exited with code ${code}`);
-          console.error('stdout:', stdout);
-          console.error('stderr:', stderr);
+          console.error(`STDOUT: ${stdout}`);
+          console.error(`STDERR: ${stderr}`);
           
-          // Check if there's a placeholder we can use instead
-          const placeholderFontPath = path.join(process.cwd(), 'public', 'demo-fonts', `placeholder.${format}`);
-          if (fs.existsSync(placeholderFontPath)) {
-            fs.copyFileSync(placeholderFontPath, `${outputPath}.${format}`);
-            resolve({ success: true });
-          } else {
-            resolve({ 
-              success: false, 
-              error: `FontForge process failed with code ${code}` 
-            });
-          }
-        } else {
+          return resolve({
+            success: false,
+            error: `Font generation failed with code ${code}: ${stderr}`,
+          });
+        }
+        
+        console.log(`Font generation succeeded: ${stdout}`);
+        
+        // Verify the output file exists
+        const outputFile = `${outputPath}.${format}`;
+        if (fs.existsSync(outputFile)) {
+          console.log(`Generated font file: ${outputFile} (${fs.statSync(outputFile).size} bytes)`);
           resolve({ success: true });
+        } else {
+          console.error(`Expected output file not found: ${outputFile}`);
+          resolve({
+            success: false,
+            error: `Font file was not created at ${outputFile}`,
+          });
         }
       });
     } catch (error) {
-      console.error('Error running FontForge:', error);
-      
-      // Try placeholder font as fallback
-      try {
-        const placeholderFontPath = path.join(process.cwd(), 'public', 'demo-fonts', `placeholder.${format}`);
-        if (fs.existsSync(placeholderFontPath)) {
-          fs.copyFileSync(placeholderFontPath, `${outputPath}.${format}`);
-          resolve({ success: true });
-        } else {
-          resolve({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Font generation failed' 
-          });
-        }
-      } catch (fallbackError) {
-        resolve({ 
-          success: false, 
-          error: `Font generation failed and fallback failed: ${fallbackError}` 
-        });
-      }
+      console.error('Error generating font file:', error);
+      resolve({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error generating font file',
+      });
     }
   });
 }
 
 /**
- * Retrieves a generated font
+ * Retrieve a font from storage
  */
 export async function retrieveFont(fontId: string, format: string): Promise<FontRetrievalResult> {
   try {
-    // First check if the font exists in Supabase
-    const { data: fontData, error: fontError } = await supabase
-      .from('fonts')
-      .select(`
-        id, 
-        name,
-        font_files!inner(
-          id,
-          format,
-          url,
-          storage_path
-        )
-      `)
-      .eq('id', fontId)
-      .eq('font_files.format', format)
+    // First try to retrieve from Supabase
+    const { data, error } = await supabase
+      .from('font_files')
+      .select('url, storage_path')
+      .eq('font_id', fontId)
+      .eq('format', format)
       .single();
     
-    if (fontError || !fontData) {
-      // If not in Supabase, fall back to file system
-      return await retrieveFontFromFileSystem(fontId, format);
+    if (error) {
+      // If not found in Supabase, retrieve from filesystem
+      return retrieveFontFromFileSystem(fontId, format);
     }
     
-    // Get download URL from Supabase
-    const fontFile = fontData.font_files[0];
-    const fontName = fontData.name;
-    
-    const downloadResult = await supabaseStorage.getFontDownloadUrl(
-      fontId,
-      fontName,
-      format
-    );
-    
-    if (downloadResult.success && downloadResult.url) {
-      return {
-        success: true,
-        fontName,
-        url: downloadResult.url,
-      };
-    }
-    
-    // Fall back to file system if Supabase URL fails
-    return await retrieveFontFromFileSystem(fontId, format);
+    // If found in Supabase
+    return {
+      success: true,
+      url: data.url,
+    };
   } catch (error) {
-    console.error('Error retrieving font from Supabase:', error);
-    // Fall back to file system
-    return await retrieveFontFromFileSystem(fontId, format);
+    console.error('Error retrieving font:', error);
+    return {
+      success: false,
+      error: 'Failed to retrieve font',
+    };
   }
 }
 
 /**
- * Retrieves a font from the file system
+ * Retrieve a font from the local filesystem
  */
 async function retrieveFontFromFileSystem(
   fontId: string, 
@@ -498,33 +480,27 @@ async function retrieveFontFromFileSystem(
     const fontStoragePath = getFontStoragePath();
     const fontProjectPath = path.join(fontStoragePath, fontId);
     
-    // Check if the font project exists
-    if (!fs.existsSync(fontProjectPath)) {
-      return {
-        success: false,
-        error: 'Font not found'
-      };
-    }
-    
-    // Read the metadata to get the font name
+    // Read metadata to get font name
     const metadataPath = path.join(fontProjectPath, 'metadata.json');
     if (!fs.existsSync(metadataPath)) {
       return {
         success: false,
-        error: 'Font metadata not found'
+        error: 'Font metadata not found',
       };
     }
     
-    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     const fontName = metadata.name || 'font';
-    const fileName = `${fontName.replace(/\s+/g, '_').toLowerCase()}.${format}`;
-    const fontFilePath = path.join(fontProjectPath, 'output', fileName);
     
-    // Check if the font file exists
+    // Look for the font file
+    const outputPath = path.join(fontProjectPath, 'output');
+    const fontFileName = `${fontName.replace(/\s+/g, '_').toLowerCase()}.${format}`;
+    const fontFilePath = path.join(outputPath, fontFileName);
+    
     if (!fs.existsSync(fontFilePath)) {
       return {
         success: false,
-        error: 'Font file not found'
+        error: 'Font file not found',
       };
     }
     
@@ -534,16 +510,16 @@ async function retrieveFontFromFileSystem(
       fontName,
     };
   } catch (error) {
-    console.error('Error retrieving font from file system:', error);
+    console.error('Error retrieving font from filesystem:', error);
     return {
       success: false,
-      error: 'Error retrieving font'
+      error: 'Failed to retrieve font from filesystem',
     };
   }
 }
 
 /**
- * Get content type based on file format
+ * Get the appropriate content type for a font format
  */
 function getContentType(format: string): string {
   switch (format.toLowerCase()) {

@@ -27,6 +27,15 @@ export interface CharacterMapping {
   polygonPoints?: {x: number, y: number}[];
 }
 
+// Font adjustment interface
+export interface FontAdjustments {
+  letterSpacing: number; // Global letter spacing (-50 to 100)
+  baselineOffset: number; // Vertical baseline adjustment (-50 to 50)
+  charWidth: number; // Character width scaling (50 to 150)
+  kerningPairs: Record<string, number>; // Custom spacing for specific character pairs
+  charPositions: Record<string, {x: number, y: number}>; // Per-character positioning adjustments
+}
+
 export interface FontMetadata {
   name: string;
   description?: string;
@@ -39,8 +48,9 @@ export interface FontState {
   sourceImages: SourceImage[];
   characterMappings: CharacterMapping[];
   metadata: FontMetadata;
-  currentStep: 'image-upload' | 'character-mapping' | 'font-testing' | 'metadata' | 'download';
-  previewText: string;
+  currentStep: 'image-upload' | 'character-mapping' | 'metadata' | 'download';
+  fontAdjustments: FontAdjustments;
+  unmappedChars: Set<string>;
 }
 
 interface FontContextType extends FontState {
@@ -61,11 +71,19 @@ interface FontContextType extends FontState {
   // Navigation
   setCurrentStep: (step: FontState['currentStep']) => void;
   
-  // Preview
-  updatePreviewText: (text: string) => void;
+  // Font Adjustments
+  updateFontAdjustments: (adjustments: Partial<FontAdjustments>) => void;
+  setKerningPair: (pair: string, value: number) => void;
+  removeKerningPair: (pair: string) => void;
   
   // Reset all data
   resetFontData: () => void;
+
+  // Unmapped characters
+  setUnmappedChars: (chars: Set<string>) => void;
+
+  // New function to set per-character position adjustments
+  setCharPosition: (char: string, x: number, y: number) => void;
 }
 
 // Initial state
@@ -80,11 +98,18 @@ const initialState: FontState = {
     tags: [],
   },
   currentStep: 'image-upload',
-  previewText: 'The quick brown fox jumps over the lazy dog',
+  fontAdjustments: {
+    letterSpacing: 0,
+    baselineOffset: 0,
+    charWidth: 100,
+    kerningPairs: {},
+    charPositions: {},
+  },
+  unmappedChars: new Set<string>(),
 };
 
 // Create context
-const FontContext = createContext<FontContextType | undefined>(undefined);
+const FontContext = createContext<FontContextType | null>(null);
 
 // Provider props
 interface FontProviderProps {
@@ -99,7 +124,8 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
   const addSourceImage = (image: Omit<SourceImage, 'id'>) => {
     const newImage = {
       ...image,
-      id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      id: `image_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      selected: true,
     };
     
     setFontState(prev => ({
@@ -130,27 +156,29 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
 
   const generateAiImage = async (prompt: string) => {
     try {
-      // This is a mock implementation - replace with actual API call
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock AI generated image (in a real app, call OpenAI API)
-      const mockImageUrl = `https://picsum.photos/800/600?random=${Math.random()}`;
-      
-      // Get image dimensions
-      const dimensions = await getImageDimensions(mockImageUrl);
-      
-      addSourceImage({
-        url: mockImageUrl,
-        isAiGenerated: true,
-        aiPrompt: prompt,
-        selected: true,
-        width: dimensions.width,
-        height: dimensions.height,
+      const response = await fetch('/api/images/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt }),
       });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.imageUrl) {
+        addSourceImage({
+          url: data.imageUrl,
+          isAiGenerated: true,
+          aiPrompt: prompt,
+        });
+      } else {
+        console.error('Failed to generate AI image:', data.error);
+        // Handle error
+      }
     } catch (error) {
-      console.error('AI image generation failed', error);
-      throw error;
+      console.error('Error generating AI image:', error);
+      // Handle error
     }
   };
 
@@ -160,8 +188,8 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
       const img = new Image();
       img.onload = () => {
         resolve({
-          width: img.width,
-          height: img.height
+          width: img.naturalWidth,
+          height: img.naturalHeight,
         });
       };
       img.onerror = () => {
@@ -213,9 +241,54 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     setFontState(prev => ({ ...prev, currentStep: step }));
   };
 
-  // Preview function
-  const updatePreviewText = (text: string) => {
-    setFontState(prev => ({ ...prev, previewText: text }));
+  // Font Adjustment functions
+  const updateFontAdjustments = (adjustments: Partial<FontAdjustments>) => {
+    setFontState(prev => ({
+      ...prev,
+      fontAdjustments: { ...prev.fontAdjustments, ...adjustments },
+    }));
+  };
+
+  const setKerningPair = (pair: string, value: number) => {
+    setFontState(prev => ({
+      ...prev,
+      fontAdjustments: {
+        ...prev.fontAdjustments,
+        kerningPairs: {
+          ...prev.fontAdjustments.kerningPairs,
+          [pair]: value,
+        },
+      },
+    }));
+  };
+
+  const removeKerningPair = (pair: string) => {
+    setFontState(prev => {
+      const newKerningPairs = { ...prev.fontAdjustments.kerningPairs };
+      delete newKerningPairs[pair];
+      
+      return {
+        ...prev,
+        fontAdjustments: {
+          ...prev.fontAdjustments,
+          kerningPairs: newKerningPairs,
+        },
+      };
+    });
+  };
+
+  // Add a new function to set per-character position adjustments
+  const setCharPosition = (char: string, x: number, y: number) => {
+    setFontState(prev => ({
+      ...prev,
+      fontAdjustments: {
+        ...prev.fontAdjustments,
+        charPositions: {
+          ...prev.fontAdjustments.charPositions,
+          [char]: { x, y },
+        },
+      },
+    }));
   };
 
   // Reset function
@@ -223,28 +296,43 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     setFontState(initialState);
   };
 
-  const value = {
-    ...fontState,
-    addSourceImage,
-    removeSourceImage,
-    toggleImageSelection,
-    generateAiImage,
-    addCharacterMapping,
-    updateCharacterMapping,
-    removeCharacterMapping,
-    updateMetadata,
-    setCurrentStep,
-    updatePreviewText,
-    resetFontData,
+  const setUnmappedChars = (chars: Set<string>) => {
+    setFontState(prev => ({
+      ...prev,
+      unmappedChars: chars,
+    }));
   };
 
-  return <FontContext.Provider value={value}>{children}</FontContext.Provider>;
+  return (
+    <FontContext.Provider
+      value={{
+        ...fontState,
+        addSourceImage,
+        removeSourceImage,
+        toggleImageSelection,
+        generateAiImage,
+        addCharacterMapping,
+        updateCharacterMapping,
+        removeCharacterMapping,
+        updateMetadata,
+        setCurrentStep,
+        updateFontAdjustments,
+        setKerningPair,
+        removeKerningPair,
+        setCharPosition,
+        resetFontData,
+        setUnmappedChars,
+      }}
+    >
+      {children}
+    </FontContext.Provider>
+  );
 };
 
-// Custom hook to use font context
+// Hook for using the font context
 export const useFont = () => {
   const context = useContext(FontContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useFont must be used within a FontProvider');
   }
   return context;

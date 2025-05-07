@@ -1,0 +1,10 @@
+{
+  "letterSpacing": 16,
+  "baselineOffset": 0,
+  "charWidth": 100,
+  "kerningPairs": {
+    "CD": 40,
+    "BC": 25,
+    "AB": 16
+  }
+}

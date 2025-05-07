@@ -1,0 +1,16 @@
+{
+  "letterSpacing": 8,
+  "baselineOffset": 0,
+  "charWidth": 100,
+  "kerningPairs": {},
+  "charPositions": {
+    "G": {
+      "x": 635,
+      "y": 0
+    },
+    "A": {
+      "x": 10,
+      "y": 18
+    }
+  }
+}
