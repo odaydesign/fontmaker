@@ -6,7 +6,6 @@ import ImageUploader from '@/components/tools/ImageUploader';
 import CharacterMapper from '@/components/tools/CharacterMapper';
 import CharacterAlignment from '@/components/tools/CharacterAlignment';
 import FontDownloader from '@/components/tools/FontDownloader';
-import FontLivePreview from '@/components/tools/FontLivePreview';
 import { useFont } from '@/context/FontContext';
 
 export default function CreatePage() {
@@ -84,7 +83,6 @@ export default function CreatePage() {
             </div>
             <div className="p-6">
               <CharacterAlignment />
-              <FontLivePreview />
             </div>
           </>
         );

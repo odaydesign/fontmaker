@@ -211,6 +211,54 @@ export default function AutoCharacterMapper({
           )}
           
           <div className="mt-4 flex justify-end">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                // Get all unmapped characters
+                const unmappedChars = characters.filter(char => !char.assignedChar);
+                if (unmappedChars.length === 0) {
+                  toast.info('All characters are already mapped');
+                  return;
+                }
+                
+                // Get available characters (uppercase alphabet first)
+                const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                const availableLetters = alphabet.split('')
+                  .filter(letter => !assignedChars[letter]);
+                
+                // Map unmapped characters to available letters
+                let assigned = 0;
+                const updatedChars = [...characters];
+                
+                for (let i = 0; i < unmappedChars.length && i < availableLetters.length; i++) {
+                  const charIndex = characters.findIndex(c => c.id === unmappedChars[i].id);
+                  if (charIndex >= 0) {
+                    updatedChars[charIndex] = {
+                      ...updatedChars[charIndex],
+                      assignedChar: availableLetters[i]
+                    };
+                    assigned++;
+                  }
+                }
+                
+                // Update state
+                setCharacters(updatedChars);
+                
+                // Track assigned characters
+                const newAssignedChars = { ...assignedChars };
+                updatedChars.forEach(char => {
+                  if (char.assignedChar) {
+                    newAssignedChars[char.assignedChar] = true;
+                  }
+                });
+                setAssignedChars(newAssignedChars);
+                
+                toast.success(`Auto-mapped ${assigned} characters`);
+              }}
+              className="mr-2"
+            >
+              Auto-Map Characters
+            </Button>
             <Button onClick={saveMapping} disabled={!characters.some(c => c.assignedChar)}>
               Save Mappings
             </Button>

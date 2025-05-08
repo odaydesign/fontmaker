@@ -969,8 +969,7 @@ const CharacterMapper: React.FC = () => {
   
   const handleAutoMappedCharacters = (mappings: Record<string, any>) => {
     Object.entries(mappings).forEach(([char, mapping]) => {
-      const newMapping: CharacterMapping = {
-        id: `${Date.now()}_${char}`,
+      const newMapping: Omit<CharacterMapping, 'id'> = {
         sourceImageId: currentImageId || '',
         char,
         x1: mapping.x,
