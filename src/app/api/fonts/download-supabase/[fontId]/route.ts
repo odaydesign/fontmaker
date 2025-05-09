@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { retrieveFont } from '@/services/fontGeneratorSupabase';
-import fs from 'fs';
-import * as supabaseStorage from '@/services/supabaseStorage';
+import { retrieveFont } from '@/services/fontGenerator';
 
 export async function GET(
   request: NextRequest,
@@ -21,38 +19,29 @@ export async function GET(
       );
     }
     
-    // If URL is provided (from Supabase), redirect to it
+    // If we have a URL, redirect to it
     if (result.url) {
       return NextResponse.redirect(result.url);
     }
     
-    // Otherwise, serve the file from the file system (fallback)
-    const filePath = result.filePath;
-    
-    // Check if the file exists
-    if (!filePath || !fs.existsSync(filePath)) {
-      return NextResponse.json(
-        { error: 'Font file not found' },
-        { status: 404 }
-      );
+    // Otherwise, serve the file
+    if (result.filePath) {
+      const file = await fetch(result.filePath);
+      const buffer = await file.arrayBuffer();
+      
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': `font/${format}`,
+          'Content-Disposition': `attachment; filename="${result.fontName || 'font'}.${format}"`,
+        },
+      });
     }
     
-    // Read the file
-    const fontData = fs.readFileSync(filePath);
+    return NextResponse.json(
+      { error: 'Font file not found' },
+      { status: 404 }
+    );
     
-    // Create the appropriate content type
-    const contentType = getContentType(format);
-    
-    // Set header to force download
-    const fileName = `${result.fontName || 'font'}.${format}`;
-    
-    // Return the font file
-    return new NextResponse(fontData, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-      },
-    });
   } catch (error) {
     console.error('Error retrieving font:', error);
     return NextResponse.json(

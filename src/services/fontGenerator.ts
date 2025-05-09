@@ -52,6 +52,20 @@ const getContentType = (format: string): string => {
   }
 };
 
+// Helper function to handle image URLs (both data URLs and file paths)
+async function handleImageUrl(url: string, outputPath: string): Promise<void> {
+  if (url.startsWith('data:')) {
+    // Handle data URL
+    await saveImageFromDataURL(url, outputPath);
+  } else if (url.startsWith('/')) {
+    // Handle file path
+    const fullPath = path.join(process.cwd(), 'public', url);
+    fs.copyFileSync(fullPath, outputPath);
+  } else {
+    throw new Error('Invalid image URL format');
+  }
+}
+
 /**
  * Generates a font based on character mappings and source images
  */
@@ -86,7 +100,7 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
     for (const image of sourceImages) {
       const imageFileName = `image_${image.id}.png`;
       const imagePath = path.join(imagesPath, imageFileName);
-      await saveImageFromDataURL(image.url, imagePath);
+      await handleImageUrl(image.url, imagePath);
       sourceImageMap.set(image.id, imagePath);
     }
     

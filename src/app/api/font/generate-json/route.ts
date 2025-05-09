@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
-import { generateFont } from '@/services/fontGeneratorFontForge';
+import { generateFont } from '@/services/fontGenerator';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
+import { CharacterMapping, SourceImage } from '@/context/FontContext';
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,70 +37,48 @@ export async function POST(request: NextRequest) {
     // Generate a unique ID for this font
     const fontId = uuidv4();
     
-    // Create output directory
-    const storageDir = path.join(process.cwd(), 'font-storage');
-    const fontDir = path.join(storageDir, `font_${Date.now()}_${fontId.substring(0, 8)}`);
-    const charsDir = path.join(fontDir, 'chars');
-    const imagesDir = path.join(fontDir, 'images');
-    const outputDir = path.join(fontDir, 'output');
-    
-    await fs.mkdir(fontDir, { recursive: true });
-    await fs.mkdir(charsDir, { recursive: true });
-    await fs.mkdir(imagesDir, { recursive: true });
-    await fs.mkdir(outputDir, { recursive: true });
-    
-    // Process character mappings and save images
-    const fontMappings = [];
-    for (const char in characterMappings) {
-      // Extract character image from source
-      const mappingData = characterMappings[char];
-      const sourceImageId = mappingData.sourceImageId || Object.keys(sourceImages)[0];
-      const sourceImageUrl = sourceImages[sourceImageId];
-      
-      // Here we would extract and save the character image
-      // For simplicity, we'll use a placeholder SVG for now
-      const svgPath = path.join(charsDir, `char_${char.charCodeAt(0)}.svg`);
-      
-      // Create a simple rectangle SVG as a placeholder
-      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
-        <rect x="10" y="10" width="80" height="80" fill="black" />
-      </svg>`;
-      
-      await fs.writeFile(svgPath, svgContent);
-      
-      fontMappings.push({
-        char,
-        path: svgPath
-      });
-    }
-    
-    // Save metadata
-    await fs.writeFile(
-      path.join(fontDir, 'metadata.json'), 
-      JSON.stringify(metadata, null, 2)
-    );
-    
-    // Save character mappings
-    await fs.writeFile(
-      path.join(fontDir, 'charmap.json'),
-      JSON.stringify(characterMappings, null, 2)
-    );
-    
+    // Convert character mappings to the expected format
+    const formattedMappings: CharacterMapping[] = Object.entries(characterMappings).map(([char, data]: [string, any]) => ({
+      id: uuidv4(),
+      char,
+      sourceImageId: data.sourceImageId || Object.keys(sourceImages)[0],
+      x1: data.x1 || 0,
+      y1: data.y1 || 0,
+      x2: data.x2 || 100,
+      y2: data.y2 || 100,
+      originalImageWidth: data.originalImageWidth || 100,
+      originalImageHeight: data.originalImageHeight || 100
+    }));
+
+    // Convert source images to the expected format
+    const formattedSourceImages: SourceImage[] = Object.entries(sourceImages).map(([id, url]: [string, any]) => ({
+      id,
+      url,
+      isAiGenerated: false
+    }));
+
     // Generate the font
-    const fontPath = await generateFont(fontMappings, {
-      fontName: metadata.name || 'CustomFont',
-      format: format as 'ttf' | 'otf' | 'woff' | 'woff2',
-      outputDir
+    const result = await generateFont({
+      characterMappings: formattedMappings,
+      sourceImages: formattedSourceImages,
+      metadata,
+      format,
+      fontId,
+      userId
     });
-    
-    // Get the filename
-    const fontFilename = path.basename(fontPath);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to generate font' },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({
       success: true,
-      fontId,
-      downloadUrl: `/api/fonts/download/${fontId}?format=${format}`,
-      metadata
+      fontId: result.fontId,
+      downloadUrl: `/api/fonts/download/${result.fontId}?format=${format}`,
+      metadata: result.metadata
     });
     
   } catch (error) {

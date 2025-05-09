@@ -1,14 +1,13 @@
 [build]
-builder = "nixpacks"
-buildCommand = "npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm run start"
-healthcheckPath = "/"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 restartPolicyType = "on-failure"
 restartPolicyMaxRetries = 10
 
-[deploy.env]
+[env]
 NODE_ENV = "production"
 PORT = "3000" 

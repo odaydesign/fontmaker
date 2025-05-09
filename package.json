@@ -3,11 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:fontforge": "python3 scripts/test-fontforge.py",
+    "prestart": "npm run test:fontforge"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",
