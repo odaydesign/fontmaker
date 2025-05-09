@@ -10,7 +10,7 @@ import {
 } from '@/utils/helpers';
 import { SourceImage, CharacterMapping, FontMetadata } from '@/context/FontContext';
 import prisma from '@/lib/prisma';
-import * as s3 from '@/lib/s3';
+import * as supabaseStorage from '@/services/supabaseStorage';
 
 interface FontGenerationRequest {
   characterMappings: CharacterMapping[];
@@ -35,6 +35,22 @@ interface FontRetrievalResult {
   fontName?: string;
   url?: string;
 }
+
+// Helper function to get content type based on format
+const getContentType = (format: string): string => {
+  switch (format.toLowerCase()) {
+    case 'ttf':
+      return 'font/ttf';
+    case 'otf':
+      return 'font/otf';
+    case 'woff':
+      return 'font/woff';
+    case 'woff2':
+      return 'font/woff2';
+    default:
+      return 'application/octet-stream';
+  }
+};
 
 /**
  * Generates a font based on character mappings and source images
@@ -103,18 +119,23 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
         continue;
       }
       
-      // Upload the character image to S3
-      const s3Upload = await s3.uploadFile(
-        charPath, 
-        `fonts/${fontId}/chars`,
-        `fonts/${fontId}/chars/${charFileName}`
+      // Upload the character image to Supabase
+      const uploadResult = await supabaseStorage.uploadCharacterImage(
+        charPath,
+        fontId,
+        charFileName
       );
+      
+      if (!uploadResult.success) {
+        console.warn(`Failed to upload character ${mapping.char}: ${uploadResult.error}`);
+        continue;
+      }
       
       characterData.push({
         char: mapping.char,
         unicode: mapping.char.charCodeAt(0),
         path: charPath,
-        url: s3Upload.url,
+        url: uploadResult.url || '',
       });
       
       // Store mapping for database
@@ -126,8 +147,8 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
         y2: mapping.y2,
         originalImageWidth: mapping.originalImageWidth,
         originalImageHeight: mapping.originalImageHeight,
-        charImageUrl: s3Upload.url,
-        charImageKey: s3Upload.key,
+        charImageUrl: uploadResult.url || '',
+        charImageKey: uploadResult.path || '',
         sourceImageId: mapping.sourceImageId,
       });
     }
@@ -152,12 +173,18 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
       throw new Error(fontResult.error || 'Failed to generate font file');
     }
     
-    // 8. Upload the font file to S3
-    const s3FontUpload = await s3.uploadFile(
-      fontFilePath,
-      `fonts/${fontId}`,
-      `fonts/${fontId}/${fontFileName}`
+    // 8. Upload the font file to Supabase
+    const fontFile = fs.readFileSync(fontFilePath);
+    const uploadResult = await supabaseStorage.uploadFontFile(
+      new Blob([fontFile], { type: getContentType(format) }),
+      fontId,
+      format,
+      metadata.name
     );
+    
+    if (!uploadResult.success) {
+      throw new Error(uploadResult.error || 'Failed to upload font file');
+    }
     
     // 9. Store in database if userId is provided
     if (userId) {
@@ -187,8 +214,8 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
             fontFiles: {
               create: {
                 format,
-                url: s3FontUpload.url,
-                storageKey: s3FontUpload.key,
+                url: uploadResult.url || '',
+                storageKey: uploadResult.path || '',
                 fileSize: fs.statSync(fontFilePath).size,
               }
             },
@@ -242,7 +269,7 @@ export async function generateFont(request: FontGenerationRequest): Promise<Font
         format,
         createdAt: new Date().toISOString(),
         characterCount: characterMappings.length,
-        url: s3FontUpload.url,
+        url: uploadResult.url,
       }
     };
   } catch (error) {
@@ -412,22 +439,9 @@ export async function retrieveFont(fontId: string, format: string): Promise<Font
       }
     });
     
-    // If found in database and has a S3 URL, return it
+    // If found in database and has a Supabase URL, return it
     if (dbFont && dbFont.fontFiles.length > 0 && dbFont.fontFiles[0].url) {
       const fontFile = dbFont.fontFiles[0];
-      
-      // Generate a signed URL for the file
-      let url = fontFile.url;
-      
-      // If we have a storage key, generate a signed URL
-      if (fontFile.storageKey) {
-        try {
-          url = await s3.getSignedUrl(fontFile.storageKey);
-        } catch (s3Error) {
-          console.error('Error generating signed URL:', s3Error);
-          // Continue with the regular URL
-        }
-      }
       
       // Increment download count
       await prisma.fontFile.update({
@@ -438,7 +452,7 @@ export async function retrieveFont(fontId: string, format: string): Promise<Font
       return {
         success: true,
         fontName: dbFont.name,
-        url,
+        url: fontFile.url || undefined,
       };
     }
     
