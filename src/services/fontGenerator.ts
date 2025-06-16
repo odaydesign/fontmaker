@@ -443,71 +443,66 @@ async function generateFontFile(
  */
 export async function retrieveFont(fontId: string, format: string): Promise<FontRetrievalResult> {
   try {
-    // First check if the font exists in the database
-    const dbFont = await prisma.font.findUnique({
-      where: { id: fontId },
-      include: {
-        fontFiles: {
-          where: { format },
-        }
-      }
-    });
-    
-    // If found in database and has a Supabase URL, return it
-    if (dbFont && dbFont.fontFiles.length > 0 && dbFont.fontFiles[0].url) {
-      const fontFile = dbFont.fontFiles[0];
-      
-      // Increment download count
-      await prisma.fontFile.update({
-        where: { id: fontFile.id },
-        data: { downloadCount: { increment: 1 } }
-      });
-      
-      return {
-        success: true,
-        fontName: dbFont.name,
-        url: fontFile.url || undefined,
-      };
-    }
-    
-    // Otherwise check the file system
+    // First check the file system (works without database)
     const fontStoragePath = getFontStoragePath();
     const fontProjectPath = path.join(fontStoragePath, fontId);
     
     // Check if the font project exists
-    if (!fs.existsSync(fontProjectPath)) {
-      return {
-        success: false,
-        error: 'Font not found'
-      };
+    if (fs.existsSync(fontProjectPath)) {
+      // Read the metadata to get the font name
+      const metadataPath = path.join(fontProjectPath, 'metadata.json');
+      if (fs.existsSync(metadataPath)) {
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+        const fontName = metadata.name || 'font';
+        const fileName = `${fontName.replace(/\s+/g, '_').toLowerCase()}.${format}`;
+        const fontFilePath = path.join(fontProjectPath, 'output', fileName);
+        
+        // Check if the font file exists
+        if (fs.existsSync(fontFilePath)) {
+          return {
+            success: true,
+            filePath: fontFilePath,
+            fontName,
+          };
+        }
+      }
     }
     
-    // Read the metadata to get the font name
-    const metadataPath = path.join(fontProjectPath, 'metadata.json');
-    if (!fs.existsSync(metadataPath)) {
-      return {
-        success: false,
-        error: 'Font metadata not found'
-      };
+    // Try database as fallback (if DATABASE_URL is available)
+    try {
+      const dbFont = await prisma.font.findUnique({
+        where: { id: fontId },
+        include: {
+          fontFiles: {
+            where: { format },
+          }
+        }
+      });
+      
+      // If found in database and has a Supabase URL, return it
+      if (dbFont && dbFont.fontFiles.length > 0 && dbFont.fontFiles[0].url) {
+        const fontFile = dbFont.fontFiles[0];
+        
+        // Increment download count
+        await prisma.fontFile.update({
+          where: { id: fontFile.id },
+          data: { downloadCount: { increment: 1 } }
+        });
+        
+        return {
+          success: true,
+          fontName: dbFont.name,
+          url: fontFile.url || undefined,
+        };
+      }
+    } catch (dbError) {
+      console.log('Database not available, using file system only');
     }
     
-    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
-    const fontName = metadata.name || 'font';
-    const fileName = `${fontName.replace(/\s+/g, '_').toLowerCase()}.${format}`;
-    const fontFilePath = path.join(fontProjectPath, 'output', fileName);
-    
-    // Check if the font file exists
-    if (!fs.existsSync(fontFilePath)) {
-      return {
-        success: false,
-        error: 'Font file not found'
-      };
-    }
-    
+        // If we get here, font not found
     return {
-      success: true,
-      filePath: fontFilePath,
-      fontName,
+      success: false,
+      error: 'Font not found'
     };
   } catch (error) {
     console.error('Error retrieving font:', error);
