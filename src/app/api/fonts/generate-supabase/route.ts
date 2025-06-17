@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateFont } from '@/services/fontGeneratorSupabase';
 import { generateFontId } from '@/utils/helpers';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate the user
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id;
-    
-    // Authentication is now optional
-    // if (!userId) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   );
-    // }
+    // No authentication for v4 version - completely removed NextAuth
+    const userId = undefined;
     
     const body = await request.json();
     const { characterMappings, sourceImages, metadata, format = 'ttf', adjustments } = body;
@@ -44,6 +33,7 @@ export async function POST(request: NextRequest) {
       baselineOffset: adjustments.baselineOffset ?? 0, 
       charWidth: adjustments.charWidth ?? 100,
       kerningPairs: adjustments.kerningPairs ?? {},
+      charPositions: adjustments.charPositions ?? {},
     } : undefined;
     
     // Process the images and generate the font
@@ -69,7 +59,7 @@ export async function POST(request: NextRequest) {
       fontId,
       downloadUrl: `/api/fonts/download-supabase/${fontId}?format=${format}`,
       metadata: result.metadata,
-      isAuthenticated: !!userId, // Return auth state to the client
+      isAuthenticated: false, // Always false for v4
     });
   } catch (error) {
     console.error('Error generating font:', error);
