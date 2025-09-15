@@ -10,7 +10,7 @@ function getTempStoragePath(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl } = await request.json();
+    const { imageUrl, imageId } = await request.json();
     
     if (!imageUrl) {
       return NextResponse.json(
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       sessionId,
+      imageId,
       detectedCharacters
     });
   } catch (error) {

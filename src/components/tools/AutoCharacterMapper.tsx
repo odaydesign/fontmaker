@@ -5,59 +5,101 @@ import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
 import { DetectedCharacter } from '@/services/characterDetectionService';
 import Image from 'next/image';
+import { useFont } from '@/context/FontContext';
 
 interface AutoCharacterMapperProps {
-  imageUrl: string;
   onCharactersMapped: (mappings: Record<string, any>) => void;
   onCancel: () => void;
 }
 
 export default function AutoCharacterMapper({ 
-  imageUrl, 
   onCharactersMapped,
   onCancel
 }: AutoCharacterMapperProps) {
+  const { sourceImages } = useFont();
   const [detecting, setDetecting] = useState(false);
   const [characters, setCharacters] = useState<DetectedCharacter[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedChar, setSelectedChar] = useState<DetectedCharacter | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [processedImages, setProcessedImages] = useState<Set<string>>(new Set());
   
-  // Character set for mapping (could be customizable)
-  const availableChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+  // Character set for mapping (comprehensive character set)
+  const availableChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:\'",./<>?€£¥¢₹±×÷≠≈≤≥∑∏√∞πéèêëàâäïîìñóòôöúùûü';
   
   // Characters that have been assigned
   const [assignedChars, setAssignedChars] = useState<Record<string, boolean>>({});
   
+  // Get selected images
+  const selectedImages = sourceImages.filter(img => img.selected);
+  
   const detectCharacters = async () => {
-    if (!imageUrl) return;
+    if (selectedImages.length === 0) {
+      toast.error('No images selected. Please select at least one image first.');
+      return;
+    }
     
     setDetecting(true);
     setError(null);
-    toast.info('Detecting characters in image...');
+    setCharacters([]);
+    setProcessedImages(new Set());
+    
+    const allDetectedCharacters: DetectedCharacter[] = [];
+    let totalDetected = 0;
+    
+    toast.info(`Detecting characters in ${selectedImages.length} image(s)...`);
     
     try {
-      const response = await fetch('/api/characters/detect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ imageUrl }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Character detection failed');
+      // Process each selected image
+      for (let i = 0; i < selectedImages.length; i++) {
+        const image = selectedImages[i];
+        toast.info(`Processing image ${i + 1} of ${selectedImages.length}...`);
+        
+        try {
+          const response = await fetch('/api/characters/detect', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              imageUrl: image.url,
+              imageId: image.id 
+            }),
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            console.warn(`Failed to detect characters in image ${i + 1}:`, error.error);
+            continue; // Skip this image and continue with the next one
+          }
+          
+          const data = await response.json();
+          
+          if (data.detectedCharacters && data.detectedCharacters.length > 0) {
+            // Add imageId to each detected character for tracking
+            const charactersWithImageId = data.detectedCharacters.map((char: DetectedCharacter, index: number) => ({
+              ...char,
+              id: `${image.id}_char_${index}`,
+              sourceImageId: image.id,
+              originalId: char.id
+            }));
+            
+            allDetectedCharacters.push(...charactersWithImageId);
+            totalDetected += data.detectedCharacters.length;
+            setProcessedImages(prev => new Set([...prev, image.id]));
+          }
+        } catch (imageError) {
+          console.warn(`Error processing image ${i + 1}:`, imageError);
+          continue; // Continue with next image
+        }
       }
       
-      const data = await response.json();
-      
-      if (data.detectedCharacters && data.detectedCharacters.length > 0) {
-        setCharacters(data.detectedCharacters);
-        setSessionId(data.sessionId);
-        toast.success(`${data.detectedCharacters.length} characters detected!`);
+      if (allDetectedCharacters.length > 0) {
+        setCharacters(allDetectedCharacters);
+        toast.success(`${totalDetected} characters detected across ${processedImages.size} image(s)!`);
       } else {
-        throw new Error('No characters detected. Try adjusting the image for better contrast or use manual mapping.');
+        throw new Error('No characters detected in any of the selected images. Try adjusting the images for better contrast or use manual mapping.');
       }
     } catch (error) {
       console.error('Error detecting characters:', error);
@@ -108,20 +150,25 @@ export default function AutoCharacterMapper({
             width: char.width,
             height: char.height,
             contour: char.contour,
-            sourceImageId: imageUrl // Or the actual image ID
+            sourceImageId: char.sourceImageId || 'unknown'
           };
         }
         return acc;
       }, {} as Record<string, any>);
     
     onCharactersMapped(mappings);
-    toast.success('Character mappings saved!');
+    toast.success(`Character mappings saved! ${Object.keys(mappings).length} characters mapped.`);
   };
   
   return (
     <div className="space-y-4 border rounded-md p-4 bg-gray-50 mb-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Automatic Character Detection</h3>
+        <div>
+          <h3 className="text-lg font-medium">Automatic Character Detection</h3>
+          <p className="text-sm text-gray-600">
+            {selectedImages.length} image(s) selected for processing
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button 
             variant="outline"
@@ -131,9 +178,9 @@ export default function AutoCharacterMapper({
           </Button>
           <Button 
             onClick={detectCharacters} 
-            disabled={detecting || !imageUrl}
+            disabled={detecting || selectedImages.length === 0}
           >
-            {detecting ? 'Detecting...' : 'Detect Characters'}
+            {detecting ? 'Detecting...' : `Detect Characters (${selectedImages.length})`}
           </Button>
         </div>
       </div>
@@ -154,58 +201,142 @@ export default function AutoCharacterMapper({
       )}
       
       {detecting && (
-        <div className="flex justify-center items-center py-4">
-          <div className="animate-spin h-6 w-6 border-2 border-blue-500 rounded-full border-t-transparent"></div>
-          <span className="ml-2">Analyzing image...</span>
+        <div className="flex flex-col items-center py-4">
+          <div className="flex items-center mb-2">
+            <div className="animate-spin h-6 w-6 border-2 border-blue-500 rounded-full border-t-transparent"></div>
+            <span className="ml-2">Processing images...</span>
+          </div>
+          <div className="text-sm text-gray-600">
+            Processed: {processedImages.size} of {selectedImages.length} images
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+            <div 
+              className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+              style={{ width: `${(processedImages.size / selectedImages.length) * 100}%` }}
+            ></div>
+          </div>
         </div>
       )}
       
       {characters.length > 0 && (
         <div className="mt-4">
-          <h4 className="text-md font-medium mb-2">Detected Characters ({characters.length})</h4>
+          <h4 className="text-md font-medium mb-2">
+            Detected Characters ({characters.length}) from {processedImages.size} image(s)
+          </h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-4">
-            {characters.map(char => (
-              <div 
-                key={char.id}
-                className={`border rounded p-2 cursor-pointer hover:border-blue-300 ${
-                  selectedChar?.id === char.id ? 'bg-blue-100 border-blue-500' : 
-                  char.assignedChar ? 'bg-green-50 border-green-500' : ''
-                }`}
-                onClick={() => handleCharacterClick(char)}
-              >
-                <div className="flex justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img 
-                    src={char.croppedImageUrl} 
-                    alt={`Character ${char.id}`}
-                    className="h-16 object-contain"
-                  />
-                </div>
-                {char.assignedChar && (
-                  <div className="mt-2 text-center font-bold text-green-700">
-                    {char.assignedChar}
+            {characters.map(char => {
+              const sourceImage = selectedImages.find(img => img.id === char.sourceImageId);
+              return (
+                <div 
+                  key={char.id}
+                  className={`border rounded p-2 cursor-pointer hover:border-blue-300 ${
+                    selectedChar?.id === char.id ? 'bg-blue-100 border-blue-500' : 
+                    char.assignedChar ? 'bg-green-50 border-green-500' : ''
+                  }`}
+                  onClick={() => handleCharacterClick(char)}
+                >
+                  <div className="flex justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={char.croppedImageUrl} 
+                      alt={`Character ${char.id}`}
+                      className="h-16 object-contain"
+                    />
                   </div>
-                )}
-              </div>
-            ))}
+                  {char.assignedChar && (
+                    <div className="mt-2 text-center font-bold text-green-700">
+                      {char.assignedChar}
+                    </div>
+                  )}
+                  {sourceImage && (
+                    <div className="mt-1 text-xs text-gray-500 text-center truncate">
+                      {sourceImage.isAiGenerated ? 'AI' : 'Upload'}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           
           {selectedChar && (
             <div className="mt-4 p-4 border rounded bg-white">
               <h4 className="text-md font-medium mb-2">Assign Character</h4>
-              <div className="flex flex-wrap gap-1">
-                {availableChars.split('').map(char => (
-                  <button
-                    key={char}
-                    className={`w-8 h-8 flex items-center justify-center rounded ${
-                      assignedChars[char] ? 'bg-gray-300 text-gray-600' : 'bg-white border hover:bg-blue-50'
-                    }`}
-                    onClick={() => handleKeySelect(char)}
-                    disabled={assignedChars[char]}
-                  >
-                    {char}
-                  </button>
-                ))}
+              <div className="space-y-3">
+                {/* Uppercase Letters */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Uppercase (A-Z)</h5>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map(char => (
+                      <button
+                        key={char}
+                        className={`w-8 h-8 flex items-center justify-center rounded text-sm ${
+                          assignedChars[char] ? 'bg-gray-300 text-gray-600' : 'bg-white border hover:bg-blue-50'
+                        }`}
+                        onClick={() => handleKeySelect(char)}
+                        disabled={assignedChars[char]}
+                      >
+                        {char}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Lowercase Letters */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Lowercase (a-z)</h5>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)).map(char => (
+                      <button
+                        key={char}
+                        className={`w-8 h-8 flex items-center justify-center rounded text-sm ${
+                          assignedChars[char] ? 'bg-gray-300 text-gray-600' : 'bg-white border hover:bg-blue-50'
+                        }`}
+                        onClick={() => handleKeySelect(char)}
+                        disabled={assignedChars[char]}
+                      >
+                        {char}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Numbers */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Numbers (0-9)</h5>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from({ length: 10 }, (_, i) => String(i)).map(char => (
+                      <button
+                        key={char}
+                        className={`w-8 h-8 flex items-center justify-center rounded text-sm ${
+                          assignedChars[char] ? 'bg-gray-300 text-gray-600' : 'bg-white border hover:bg-blue-50'
+                        }`}
+                        onClick={() => handleKeySelect(char)}
+                        disabled={assignedChars[char]}
+                      >
+                        {char}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Common Symbols */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-1">Common Symbols</h5>
+                  <div className="flex flex-wrap gap-1">
+                    {'!@#$%^&*()_+-=[]{}|;:\'",./<>?'.split('').map(char => (
+                      <button
+                        key={char}
+                        className={`w-8 h-8 flex items-center justify-center rounded text-sm ${
+                          assignedChars[char] ? 'bg-gray-300 text-gray-600' : 'bg-white border hover:bg-blue-50'
+                        }`}
+                        onClick={() => handleKeySelect(char)}
+                        disabled={assignedChars[char]}
+                      >
+                        {char}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -221,9 +352,17 @@ export default function AutoCharacterMapper({
                   return;
                 }
                 
-                // Get available characters (uppercase alphabet first)
-                const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                const availableLetters = alphabet.split('')
+                // Get available characters in priority order: uppercase, lowercase, numbers, symbols
+                const priorityChars = [
+                  'ABCDEFGHIJKLMNOPQRSTUVWXYZ',  // Uppercase letters
+                  'abcdefghijklmnopqrstuvwxyz',  // Lowercase letters
+                  '0123456789',                  // Numbers
+                  '!@#$%^&*()_+-=[]{}|;:\'",./<>?', // Common symbols
+                  '€£¥¢₹±×÷≠≈≤≥∑∏√∞π',          // Extended symbols
+                  'éèêëàâäïîìñóòôöúùûü'          // Accented characters
+                ].join('');
+                
+                const availableLetters = priorityChars.split('')
                   .filter(letter => !assignedChars[letter]);
                 
                 // Map unmapped characters to available letters
