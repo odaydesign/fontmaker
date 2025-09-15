@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import ImageUploader from '@/components/tools/ImageUploader';
-import CharacterMapper from '@/components/tools/CharacterMapper';
+import ImageUploadWithAutoDetection from '@/components/tools/ImageUploadWithAutoDetection';
+import CharacterMappingOverview from '@/components/tools/CharacterMappingOverview';
 import CharacterAlignment from '@/components/tools/CharacterAlignment';
 import FontDownloader from '@/components/tools/FontDownloader';
 import { useFont } from '@/context/FontContext';
@@ -48,13 +48,13 @@ export default function CreatePage() {
         return (
           <>
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold">Upload Your Images</h2>
+              <h2 className="text-xl font-bold">Upload & Auto-Detect Characters</h2>
               <p className="text-sm text-gray-500">
-                Upload images that contain the characters you want to include in your font.
+                Upload images and let our AI automatically detect and map characters for you.
               </p>
             </div>
             <div className="p-6">
-              <ImageUploader />
+              <ImageUploadWithAutoDetection />
             </div>
           </>
         );
@@ -62,13 +62,13 @@ export default function CreatePage() {
         return (
           <>
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold">Map Characters</h2>
+              <h2 className="text-xl font-bold">Review & Edit Character Mappings</h2>
               <p className="text-sm text-gray-500">
-                Select regions of your images to map to specific characters.
+                Review the automatically detected characters and make manual adjustments if needed.
               </p>
             </div>
             <div className="p-6">
-              <CharacterMapper />
+              <CharacterMappingOverview />
             </div>
           </>
         );

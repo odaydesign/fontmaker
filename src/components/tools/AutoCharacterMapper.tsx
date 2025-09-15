@@ -17,6 +17,7 @@ export default function AutoCharacterMapper({
   onCancel
 }: AutoCharacterMapperProps) {
   const { sourceImages } = useFont();
+  const selectedImages = sourceImages.filter(img => img.selected);
   const [detecting, setDetecting] = useState(false);
   const [characters, setCharacters] = useState<DetectedCharacter[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -30,9 +31,6 @@ export default function AutoCharacterMapper({
   
   // Characters that have been assigned
   const [assignedChars, setAssignedChars] = useState<Record<string, boolean>>({});
-  
-  // Get selected images
-  const selectedImages = sourceImages.filter(img => img.selected);
   
   const detectCharacters = async () => {
     if (selectedImages.length === 0) {

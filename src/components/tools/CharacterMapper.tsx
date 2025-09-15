@@ -130,32 +130,33 @@ const CharacterMapper: React.FC = () => {
   
   const mappedChars = new Set(characterMappings.map(m => m.char.toUpperCase()));
 
+  const selectedImages = sourceImages.filter(img => img.selected);
+
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % sourceImages.length);
+    setCurrentImageIndex((prev) => (prev + 1) % selectedImages.length);
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + sourceImages.length) % sourceImages.length);
+    setCurrentImageIndex((prev) => (prev - 1 + selectedImages.length) % selectedImages.length);
   };
 
   useEffect(() => {
-    if (sourceImages.length > 0) {
-      setCurrentImageId(sourceImages[currentImageIndex].id);
+    if (selectedImages.length > 0) {
+      setCurrentImageId(selectedImages[currentImageIndex].id);
     }
-  }, [currentImageIndex, sourceImages]);
+  }, [currentImageIndex, selectedImages]);
 
-  const selectedImage = sourceImages.find(img => img.id === currentImageId);
+  const selectedImage = selectedImages.find(img => img.id === currentImageId);
   
   const imageMappings = characterMappings.filter(
     mapping => mapping.sourceImageId === currentImageId
   );
 
   useEffect(() => {
-    const selectedImages = sourceImages.filter(img => img.selected);
     if (selectedImages.length > 0 && !currentImageId) {
       setCurrentImageId(selectedImages[0].id);
     }
-  }, [sourceImages, currentImageId]);
+  }, [selectedImages, currentImageId]);
 
   const drawSelectionRect = useCallback((ctx: CanvasRenderingContext2D, scaleX: number, scaleY: number) => {
     // Draw the current selection rectangle using scaled coordinates
@@ -346,7 +347,7 @@ const CharacterMapper: React.FC = () => {
   }, [characterMappings, selectedImage, selectedMapping, drawPolygon]);
 
   // Main canvas redraw function
-  const redrawCanvas = () => {
+  const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     
@@ -366,9 +367,9 @@ const CharacterMapper: React.FC = () => {
     
     // Draw all mappings
     if (selectedImage) {
-      characterMappings
-        .filter(mapping => mapping.sourceImageId === selectedImage.id)
-        .forEach(mapping => {
+      const imageMappings = characterMappings.filter(mapping => mapping.sourceImageId === selectedImage.id);
+      console.log('Drawing mappings for image:', selectedImage.id, 'Found mappings:', imageMappings.length);
+      imageMappings.forEach(mapping => {
           const isSelected = mapping.id === selectedMapping;
           
           if (mapping.isPolygon && mapping.polygonPoints) {
@@ -496,7 +497,7 @@ const CharacterMapper: React.FC = () => {
         ctx.fillText('Click points to select/move them. Press "Add Points" to continue.', 20, 25);
       }
     }
-  };
+  }, [selectedImage, characterMappings, selectedMapping, isAddingPoints, polygonPoints, isPolygonMode]);
 
   const [imageLoading, setImageLoading] = useState(false);
 
@@ -599,6 +600,8 @@ const CharacterMapper: React.FC = () => {
     endPoint,
     polygonPoints,
     scaleFactors,
+    characterMappings,
+    currentImageId,
     redrawCanvas
   ]);
 
@@ -968,6 +971,9 @@ const CharacterMapper: React.FC = () => {
   };
   
   const handleAutoMappedCharacters = (mappings: Record<string, any>) => {
+    console.log('Creating character mappings:', mappings);
+    console.log('Current image ID:', currentImageId);
+    
     Object.entries(mappings).forEach(([char, mapping]) => {
       const newMapping: Omit<CharacterMapping, 'id'> = {
         sourceImageId: currentImageId || '',
@@ -980,6 +986,7 @@ const CharacterMapper: React.FC = () => {
         polygonPoints: mapping.contour
       };
       
+      console.log('Adding mapping:', newMapping);
       addCharacterMapping(newMapping);
     });
     
@@ -988,7 +995,7 @@ const CharacterMapper: React.FC = () => {
     toast.success(`Added ${Object.keys(mappings).length} character mappings`);
   };
 
-  if (sourceImages.length === 0 || !sourceImages.some(img => img.selected)) {
+  if (selectedImages.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 p-4 rounded mb-6">
         <p>Please select at least one image from the previous step before mapping characters.</p>
@@ -1001,13 +1008,13 @@ const CharacterMapper: React.FC = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Character Mapping</h2>
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm" onClick={prevImage} disabled={sourceImages.length <= 1}>
+          <Button variant="outline" size="sm" onClick={prevImage} disabled={selectedImages.length <= 1}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm">
-            Image {sourceImages.length > 0 ? currentImageIndex + 1 : 0} of {sourceImages.length}
+            Image {selectedImages.length > 0 ? currentImageIndex + 1 : 0} of {selectedImages.length}
           </span>
-          <Button variant="outline" size="sm" onClick={nextImage} disabled={sourceImages.length <= 1}>
+          <Button variant="outline" size="sm" onClick={nextImage} disabled={selectedImages.length <= 1}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           
@@ -1024,9 +1031,8 @@ const CharacterMapper: React.FC = () => {
         </div>
       </div>
 
-      {showAutoDetection && selectedImage && (
+      {showAutoDetection && (
         <AutoCharacterMapper 
-          imageUrl={selectedImage.url} 
           onCharactersMapped={handleAutoMappedCharacters}
           onCancel={() => setShowAutoDetection(false)}
         />
@@ -1037,7 +1043,7 @@ const CharacterMapper: React.FC = () => {
           <h2 className="text-lg font-semibold">Map Characters</h2>
           
           <div className="flex gap-1 overflow-x-auto pb-2">
-            {sourceImages.map((image, index) => (
+            {selectedImages.map((image, index) => (
               <button
                 key={image.id}
                 onClick={() => setCurrentImageIndex(index)}
