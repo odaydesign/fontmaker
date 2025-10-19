@@ -21,6 +21,8 @@ import json
 import sys
 import os
 import datetime
+import subprocess
+import tempfile
 
 # Comprehensive typographic metrics (in font units)
 TYPEFACE_METRICS = {
@@ -324,14 +326,86 @@ def generate_font(charmap_file, output_file, font_name, format="ttf", adjustment
         try:
             # Clear any existing contours
             glyph.clear()
-            
-            # Import the image
-            glyph.importOutlines(char_path)
-            
-            # Adjust the glyph metrics
-            glyph.autoTrace()  # Trace the bitmap
-            glyph.autoHint()   # Add hints
-            glyph.round()      # Round to integers
+
+            print(f"Processing '{char}' from {char_path}")
+
+            # For PNG/bitmap files, we need to:
+            # 1. Convert PNG -> PBM (bitmap) using ImageMagick/convert
+            # 2. Trace PBM -> SVG using potrace
+            # 3. Import SVG into FontForge
+
+            # Create temporary files for conversion
+            with tempfile.NamedTemporaryFile(suffix='.pbm', delete=False) as pbm_file:
+                pbm_path = pbm_file.name
+
+            with tempfile.NamedTemporaryFile(suffix='.svg', delete=False) as svg_file:
+                svg_path = svg_file.name
+
+            try:
+                # Step 1: Convert PNG to PBM using Python's PIL/Pillow or external tool
+                # Using ImageMagick's convert command (should be available with brew)
+                print(f"  Converting PNG to PBM...")
+                result = subprocess.run(
+                    ['sips', '-s', 'format', 'bmp', char_path, '--out', pbm_path],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode != 0:
+                    print(f"  Warning: sips conversion failed, trying alternative...")
+                    # Try with convert if available
+                    subprocess.run(['convert', char_path, pbm_path], check=True)
+
+                # Step 2: Trace bitmap to SVG using potrace
+                print(f"  Tracing bitmap to SVG with potrace...")
+                result = subprocess.run(
+                    ['potrace', '-s', '-o', svg_path, pbm_path],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode != 0:
+                    print(f"  Potrace error: {result.stderr}")
+                    raise Exception(f"Potrace failed: {result.stderr}")
+
+                # Step 3: Import the SVG into FontForge
+                print(f"  Importing SVG into glyph...")
+                glyph.importOutlines(svg_path)
+
+                contour_count = len(glyph.foreground)
+                print(f"  Imported {contour_count} contours from SVG")
+
+                # Clean up temporary files
+                if os.path.exists(pbm_path):
+                    os.unlink(pbm_path)
+                if os.path.exists(svg_path):
+                    os.unlink(svg_path)
+
+            except Exception as trace_error:
+                print(f"  Tracing failed: {trace_error}")
+                # Clean up on error
+                if os.path.exists(pbm_path):
+                    os.unlink(pbm_path)
+                if os.path.exists(svg_path):
+                    os.unlink(svg_path)
+                raise
+
+            # Verify we have contours
+            contour_count = len(glyph.foreground)
+            print(f"  Final contour count for '{char}': {contour_count}")
+
+            # Only process if we have contours
+            if contour_count > 0:
+                # Simplify and clean up the paths
+                glyph.simplify()   # Simplify paths to reduce points
+                glyph.removeOverlap()  # Remove any overlapping contours
+                glyph.correctDirection()  # Fix contour directions (clockwise/counter-clockwise)
+                glyph.round()      # Round coordinates to integers
+                glyph.autoHint()   # Add PostScript hints
+
+                print(f"  Successfully processed '{char}' with {len(glyph.foreground)} contours")
+            else:
+                print(f"  ERROR: No contours generated for '{char}' - glyph will be empty!")
             
             # Apply overshoot for round characters
             apply_overshoot(glyph, char)
