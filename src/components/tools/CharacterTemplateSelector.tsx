@@ -7,7 +7,7 @@ import {
   getTemplateStats,
   type CharacterTemplate
 } from '@/lib/characterTemplates';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { X, Check, Info } from 'lucide-react';
 import { toast } from 'sonner';
 

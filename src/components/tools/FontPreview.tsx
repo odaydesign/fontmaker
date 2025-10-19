@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, Sun, Moon, Type, AlignLeft } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 interface FontPreviewProps {
   fontData?: ArrayBuffer | null;

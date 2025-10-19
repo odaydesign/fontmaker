@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { useFont } from '@/context/FontContext';
 
 const ImageGallery: React.FC = () => {

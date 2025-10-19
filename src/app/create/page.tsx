@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import UnifiedFontGenerator from '@/components/tools/UnifiedFontGenerator';
 import CharacterMappingOverview from '@/components/tools/CharacterMappingOverview';
 import CharacterAlignment from '@/components/tools/CharacterAlignment';

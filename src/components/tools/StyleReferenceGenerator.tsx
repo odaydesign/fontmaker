@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Textarea from '@/components/ui/Textarea';
+import Textarea from '@/components/ui/textarea';
 import { useFont } from '@/context/FontContext';
 import { Check, Loader2, Sparkles, X } from 'lucide-react';
 

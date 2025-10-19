@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { useFont } from '@/context/FontContext';
 import { ChevronLeft, ChevronRight, Edit3, Check, X, RotateCcw, Type, Move, Trash2, Save, Plus, Square, Circle } from 'lucide-react';
 import { toast } from 'sonner';

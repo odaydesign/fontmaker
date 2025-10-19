@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Input from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+import Input from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 
 const SupabaseLoginPage = () => {

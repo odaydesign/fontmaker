@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/Button';
-import Textarea from '@/components/ui/Textarea';
+import { Button } from '@/components/ui/button';
+import Textarea from '@/components/ui/textarea';
 import { useFont } from '@/context/FontContext';
 import { Loader2, Sparkles, Lightbulb, CheckCircle, Trash2 } from 'lucide-react';
 import {

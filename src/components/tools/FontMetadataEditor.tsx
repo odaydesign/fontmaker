@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import Input from '@/components/ui/Input';
-import Textarea from '@/components/ui/Textarea';
+import Input from '@/components/ui/input';
+import Textarea from '@/components/ui/textarea';
 import Switch from '@/components/ui/Switch';
 import TagInput from '@/components/ui/TagInput';
 import { useFont } from '@/context/FontContext';

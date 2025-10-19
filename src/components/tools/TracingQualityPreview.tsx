@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { ImageProcessor } from '@/lib/image/processor';
 import { PotraceTracer } from '@/lib/image/potraceTracer';
 import { Loader2, Sparkles, Gauge, Scissors, CurlyBraces, Droplets, ZoomIn, X } from 'lucide-react';
