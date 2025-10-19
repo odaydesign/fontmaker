@@ -45,3 +45,6 @@ next-env.d.ts
 
 # font storage
 /font-storage
+/temp-fonts
+/public/temp-fonts
+/public/temp

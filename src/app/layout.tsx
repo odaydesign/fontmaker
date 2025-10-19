@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Sora } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { AuthProvider } from "@/context/AuthContext";
+import SessionProvider from "@/components/providers/SessionProvider";
 import { FontProvider } from "@/context/FontContext";
-import { SupabaseAuthProvider } from "@/context/SupabaseAuthContext";
+import { TracingSettingsProvider } from "@/context/TracingSettingsContext";
 import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -30,20 +26,28 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@400;600&family=Dancing+Script:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Creepster&family=Nosifer&family=Rubik+Wet+Paint&family=Fredericka+the+Great&family=Poppins:wght@400;600;700&family=Pacifico&family=Black+Ops+One&family=Satisfy&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${sora.variable} font-sans antialiased`}
       >
-        <AuthProvider>
-          <SupabaseAuthProvider>
-            <FontProvider>
+        <SessionProvider>
+          <FontProvider>
+            <TracingSettingsProvider>
               <Header />
               <main className="min-h-screen pt-16 pb-8">
                 {children}
               </main>
               <Footer />
-            </FontProvider>
-          </SupabaseAuthProvider>
-        </AuthProvider>
+            </TracingSettingsProvider>
+          </FontProvider>
+        </SessionProvider>
         <Toaster />
       </body>
     </html>

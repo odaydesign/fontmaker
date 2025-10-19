@@ -53,7 +53,6 @@ export default function FontDownloader({
   const [selectedFormat, setSelectedFormat] = useState<string>('ttf');
   const [saveToLibrary, setSaveToLibrary] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
-  const [previewImageData, setPreviewImageData] = useState<ImageData | null>(null);
   const [generatedFontData, setGeneratedFontData] = useState<ArrayBuffer | null>(null);
   const { settings: tracingSettings, setSettings: setTracingSettings } = useTracingSettings();
 
@@ -73,38 +72,14 @@ export default function FontDownloader({
   };
 
   /**
-   * Open tracing quality preview with first character
+   * Open tracing quality preview
    */
-  const handleOpenPreview = async () => {
+  const handleOpenPreview = () => {
     if (!hasRequiredFields()) {
       toast.error('Please add characters first');
       return;
     }
-
-    try {
-      // Get first character's image data for preview
-      const firstMapping = characterMappings[0];
-      const sourceImg = sourceImages.find(img => img.id === firstMapping.sourceImageId);
-
-      if (!sourceImg) {
-        toast.error('Source image not found');
-        return;
-      }
-
-      const img = await ImageProcessor.loadImage(sourceImg.url);
-      const imageData = ImageProcessor.extractCharacter(img, {
-        x1: firstMapping.x1,
-        y1: firstMapping.y1,
-        x2: firstMapping.x2,
-        y2: firstMapping.y2,
-      });
-
-      setPreviewImageData(imageData);
-      setShowPreview(true);
-    } catch (error) {
-      console.error('Failed to load preview:', error);
-      toast.error('Failed to load preview');
-    }
+    setShowPreview(true);
   };
 
   /**
@@ -387,9 +362,9 @@ export default function FontDownloader({
       )}
 
       {/* Tracing Quality Preview Modal */}
-      {showPreview && previewImageData && (
+      {showPreview && (
         <TracingQualityPreview
-          imageData={previewImageData}
+          imageData={new ImageData(1, 1)} // Dummy data for backward compatibility
           onConfirm={handleSettingsConfirm}
           onCancel={() => setShowPreview(false)}
         />

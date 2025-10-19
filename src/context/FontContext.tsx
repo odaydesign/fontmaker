@@ -2,15 +2,17 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-// Define types
 export interface SourceImage {
   id: string;
   url: string;
   isAiGenerated: boolean;
   aiPrompt?: string;
-  selected?: boolean;
+  selected: boolean;
   width?: number;
   height?: number;
+  origin?: 'ai' | 'upload';
+  promptId?: string;
+  createdAt?: string;
 }
 
 export interface CharacterMapping {
@@ -24,16 +26,15 @@ export interface CharacterMapping {
   originalImageWidth?: number;
   originalImageHeight?: number;
   isPolygon?: boolean;
-  polygonPoints?: {x: number, y: number}[];
+  polygonPoints?: { x: number; y: number }[];
 }
 
-// Font adjustment interface
 export interface FontAdjustments {
-  letterSpacing: number; // Global letter spacing (-50 to 100)
-  baselineOffset: number; // Vertical baseline adjustment (-50 to 50)
-  charWidth: number; // Character width scaling (50 to 150)
-  kerningPairs: Record<string, number>; // Custom spacing for specific character pairs
-  charPositions: Record<string, {x: number, y: number}>; // Per-character positioning adjustments
+  letterSpacing: number;
+  baselineOffset: number;
+  charWidth: number;
+  kerningPairs: Record<string, number>;
+  charPositions: Record<string, { x: number; y: number }>;
 }
 
 export interface FontMetadata {
@@ -44,6 +45,15 @@ export interface FontMetadata {
   tags?: string[];
 }
 
+export interface PromptHistoryEntry {
+  id: string;
+  prompt: string;
+  createdAt: string;
+  status: 'pending' | 'completed' | 'error';
+  imageIds: string[];
+  error?: string;
+}
+
 export interface FontState {
   sourceImages: SourceImage[];
   characterMappings: CharacterMapping[];
@@ -51,42 +61,30 @@ export interface FontState {
   currentStep: 'image-upload' | 'character-mapping' | 'metadata' | 'download';
   fontAdjustments: FontAdjustments;
   unmappedChars: Set<string>;
+  promptHistory: PromptHistoryEntry[];
+  approvedReferenceImage: string | null;
 }
 
 interface FontContextType extends FontState {
-  // Image management
-  addSourceImage: (image: Omit<SourceImage, 'id'>) => void;
+  addSourceImage: (image: Omit<SourceImage, 'id'>) => SourceImage;
   removeSourceImage: (id: string) => void;
-  toggleImageSelection: (id: string) => void;
-  generateAiImage: (prompt: string) => Promise<void>;
-  
-  // Character mapping
+  toggleImageSelection: (id: string, selected?: boolean) => void;
+  generateAiImages: (prompt: string, options?: { count?: number }) => Promise<SourceImage[]>;
+  generateWithReference: (prompt: string, options?: { count?: number }) => Promise<SourceImage[]>;
+  setApprovedReferenceImage: (imageUrl: string | null) => void;
   addCharacterMapping: (mapping: Omit<CharacterMapping, 'id'>) => void;
   updateCharacterMapping: (id: string, mapping: Partial<CharacterMapping>) => void;
   removeCharacterMapping: (id: string) => void;
-  
-  // Metadata
   updateMetadata: (data: Partial<FontMetadata>) => void;
-  
-  // Navigation
   setCurrentStep: (step: FontState['currentStep']) => void;
-  
-  // Font Adjustments
   updateFontAdjustments: (adjustments: Partial<FontAdjustments>) => void;
   setKerningPair: (pair: string, value: number) => void;
   removeKerningPair: (pair: string) => void;
-  
-  // Reset all data
-  resetFontData: () => void;
-
-  // Unmapped characters
-  setUnmappedChars: (chars: Set<string>) => void;
-
-  // New function to set per-character position adjustments
   setCharPosition: (char: string, x: number, y: number) => void;
+  resetFontData: () => void;
+  setUnmappedChars: (chars: Set<string>) => void;
 }
 
-// Initial state
 const initialState: FontState = {
   sourceImages: [],
   characterMappings: [],
@@ -106,84 +104,59 @@ const initialState: FontState = {
     charPositions: {},
   },
   unmappedChars: new Set<string>(),
+  promptHistory: [],
+  approvedReferenceImage: null,
 };
 
-// Create context
 const FontContext = createContext<FontContextType | null>(null);
 
-// Provider props
 interface FontProviderProps {
   children: ReactNode;
 }
 
-// Create provider component
 export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
   const [fontState, setFontState] = useState<FontState>(initialState);
 
-  // Image management functions
   const addSourceImage = (image: Omit<SourceImage, 'id'>) => {
-    const newImage = {
+    const newImage: SourceImage = {
       ...image,
       id: `image_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-      selected: true,
+      selected: image.selected ?? false,
+      createdAt: image.createdAt ?? new Date().toISOString(),
     };
-    
+
     setFontState(prev => ({
       ...prev,
       sourceImages: [...prev.sourceImages, newImage],
     }));
+
+    return newImage;
   };
 
   const removeSourceImage = (id: string) => {
     setFontState(prev => ({
       ...prev,
       sourceImages: prev.sourceImages.filter(img => img.id !== id),
-      // Also remove any character mappings that use this image
-      characterMappings: prev.characterMappings.filter(
-        mapping => mapping.sourceImageId !== id
-      ),
+      characterMappings: prev.characterMappings.filter(mapping => mapping.sourceImageId !== id),
+      promptHistory: prev.promptHistory.map(entry => ({
+        ...entry,
+        imageIds: entry.imageIds.filter(imageId => imageId !== id),
+      })),
     }));
   };
 
-  const toggleImageSelection = (id: string) => {
+  const toggleImageSelection = (id: string, selected?: boolean) => {
     setFontState(prev => ({
       ...prev,
       sourceImages: prev.sourceImages.map(img =>
-        img.id === id ? { ...img, selected: !img.selected } : img
+        img.id === id
+          ? { ...img, selected: typeof selected === 'boolean' ? selected : !img.selected }
+          : img
       ),
     }));
   };
 
-  const generateAiImage = async (prompt: string) => {
-    try {
-      const response = await fetch('/api/images/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.imageUrl) {
-        addSourceImage({
-          url: data.imageUrl,
-          isAiGenerated: true,
-          aiPrompt: prompt,
-        });
-      } else {
-        console.error('Failed to generate AI image:', data.error);
-        // Handle error
-      }
-    } catch (error) {
-      console.error('Error generating AI image:', error);
-      // Handle error
-    }
-  };
-
-  // Helper function to get image dimensions
-  const getImageDimensions = (src: string): Promise<{width: number, height: number}> => {
+  const getImageDimensions = (src: string): Promise<{ width: number; height: number }> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -192,20 +165,158 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
           height: img.naturalHeight,
         });
       };
-      img.onerror = () => {
-        reject(new Error('Failed to load image'));
-      };
+      img.onerror = () => reject(new Error('Failed to load image'));
       img.src = src;
     });
   };
 
-  // Character mapping functions
+  const fetchAsDataUrl = async (url: string): Promise<string> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch generated image (status ${response.status})`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Unable to convert image to data URL'));
+        }
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read image blob'));
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const generateAiImages = async (
+    prompt: string,
+    options: { count?: number } = {}
+  ): Promise<SourceImage[]> => {
+    const promptId = `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const createdAt = new Date().toISOString();
+    const count = Math.max(1, Math.min(options.count ?? 4, 6));
+
+    setFontState(prev => ({
+      ...prev,
+      promptHistory: [
+        ...prev.promptHistory,
+        {
+          id: promptId,
+          prompt,
+          createdAt,
+          status: 'pending',
+          imageIds: [],
+        },
+      ],
+    }));
+
+    try {
+      const response = await fetch('/api/images/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt, count }),
+      });
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        const body = await response.text();
+        throw new Error(
+          `Unexpected response from image generation endpoint (status ${response.status}): ${body.slice(
+            0,
+            120
+          )}`
+        );
+      }
+
+      const data = (await response.json()) as {
+        images?: string[];
+        urls?: string[];
+        error?: string;
+      };
+
+      let imagePayloads: string[] = [];
+
+      if (data.images && data.images.length > 0) {
+        imagePayloads = data.images;
+      } else if (data.urls && data.urls.length > 0) {
+        imagePayloads = [];
+        for (const url of data.urls) {
+          try {
+            const converted = await fetchAsDataUrl(url);
+            imagePayloads.push(converted);
+          } catch (fetchError) {
+            console.warn('Failed to convert generated image URL to data URL', fetchError);
+          }
+        }
+      }
+
+      if (!response.ok || imagePayloads.length === 0) {
+        throw new Error(data.error ?? 'No images returned from OpenAI.');
+      }
+
+      const images: SourceImage[] = [];
+
+      for (const imageUrl of imagePayloads) {
+        let dimensions: { width?: number; height?: number } = {};
+
+        try {
+          const { width, height } = await getImageDimensions(imageUrl);
+          dimensions = { width, height };
+        } catch (dimensionError) {
+          console.warn('Unable to determine AI image dimensions', dimensionError);
+        }
+
+        const newImage = addSourceImage({
+          url: imageUrl,
+          isAiGenerated: true,
+          aiPrompt: prompt,
+          origin: 'ai',
+          promptId,
+          selected: false,
+          ...dimensions,
+        });
+
+        images.push(newImage);
+      }
+
+      setFontState(prev => ({
+        ...prev,
+        promptHistory: prev.promptHistory.map(entry =>
+          entry.id === promptId
+            ? { ...entry, status: 'completed', imageIds: images.map(img => img.id) }
+            : entry
+        ),
+      }));
+
+      return images;
+    } catch (error) {
+      setFontState(prev => ({
+        ...prev,
+        promptHistory: prev.promptHistory.map(entry =>
+          entry.id === promptId
+            ? {
+                ...entry,
+                status: 'error',
+                error: error instanceof Error ? error.message : 'Failed to generate images.',
+              }
+            : entry
+        ),
+      }));
+
+      throw error instanceof Error ? error : new Error('Failed to generate images.');
+    }
+  };
+
   const addCharacterMapping = (mapping: Omit<CharacterMapping, 'id'>) => {
     const newMapping = {
       ...mapping,
       id: `char_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
     };
-    
+
     setFontState(prev => ({
       ...prev,
       characterMappings: [...prev.characterMappings, newMapping],
@@ -228,7 +339,6 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     }));
   };
 
-  // Metadata functions
   const updateMetadata = (data: Partial<FontMetadata>) => {
     setFontState(prev => ({
       ...prev,
@@ -236,12 +346,10 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     }));
   };
 
-  // Navigation function
   const setCurrentStep = (step: FontState['currentStep']) => {
     setFontState(prev => ({ ...prev, currentStep: step }));
   };
 
-  // Font Adjustment functions
   const updateFontAdjustments = (adjustments: Partial<FontAdjustments>) => {
     setFontState(prev => ({
       ...prev,
@@ -266,7 +374,6 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     setFontState(prev => {
       const newKerningPairs = { ...prev.fontAdjustments.kerningPairs };
       delete newKerningPairs[pair];
-      
       return {
         ...prev,
         fontAdjustments: {
@@ -277,7 +384,6 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     });
   };
 
-  // Add a new function to set per-character position adjustments
   const setCharPosition = (char: string, x: number, y: number) => {
     setFontState(prev => ({
       ...prev,
@@ -291,7 +397,6 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     }));
   };
 
-  // Reset function
   const resetFontData = () => {
     setFontState(initialState);
   };
@@ -303,6 +408,142 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
     }));
   };
 
+  const setApprovedReferenceImage = (imageUrl: string | null) => {
+    setFontState(prev => ({
+      ...prev,
+      approvedReferenceImage: imageUrl,
+    }));
+  };
+
+  const generateWithReference = async (
+    prompt: string,
+    options: { count?: number } = {}
+  ): Promise<SourceImage[]> => {
+    if (!fontState.approvedReferenceImage) {
+      throw new Error('No reference image has been approved. Please approve a reference image first.');
+    }
+
+    const promptId = `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const createdAt = new Date().toISOString();
+    const count = Math.max(1, Math.min(options.count ?? 4, 4));
+
+    setFontState(prev => ({
+      ...prev,
+      promptHistory: [
+        ...prev.promptHistory,
+        {
+          id: promptId,
+          prompt,
+          createdAt,
+          status: 'pending',
+          imageIds: [],
+        },
+      ],
+    }));
+
+    try {
+      const response = await fetch('/api/images/edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          referenceImage: fontState.approvedReferenceImage,
+          count,
+        }),
+      });
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        const body = await response.text();
+        throw new Error(
+          `Unexpected response from image edit endpoint (status ${response.status}): ${body.slice(
+            0,
+            120
+          )}`
+        );
+      }
+
+      const data = (await response.json()) as {
+        images?: string[];
+        urls?: string[];
+        error?: string;
+      };
+
+      let imagePayloads: string[] = [];
+
+      if (data.images && data.images.length > 0) {
+        imagePayloads = data.images;
+      } else if (data.urls && data.urls.length > 0) {
+        imagePayloads = [];
+        for (const url of data.urls) {
+          try {
+            const converted = await fetchAsDataUrl(url);
+            imagePayloads.push(converted);
+          } catch (fetchError) {
+            console.warn('Failed to convert generated image URL to data URL', fetchError);
+          }
+        }
+      }
+
+      if (!response.ok || imagePayloads.length === 0) {
+        throw new Error(data.error ?? 'No images returned from OpenAI.');
+      }
+
+      const images: SourceImage[] = [];
+
+      for (const imageUrl of imagePayloads) {
+        let dimensions: { width?: number; height?: number } = {};
+
+        try {
+          const { width, height } = await getImageDimensions(imageUrl);
+          dimensions = { width, height };
+        } catch (dimensionError) {
+          console.warn('Unable to determine AI image dimensions', dimensionError);
+        }
+
+        const newImage = addSourceImage({
+          url: imageUrl,
+          isAiGenerated: true,
+          aiPrompt: prompt,
+          origin: 'ai',
+          promptId,
+          selected: false,
+          ...dimensions,
+        });
+
+        images.push(newImage);
+      }
+
+      setFontState(prev => ({
+        ...prev,
+        promptHistory: prev.promptHistory.map(entry =>
+          entry.id === promptId
+            ? { ...entry, status: 'completed', imageIds: images.map(img => img.id) }
+            : entry
+        ),
+      }));
+
+      return images;
+    } catch (error) {
+      setFontState(prev => ({
+        ...prev,
+        promptHistory: prev.promptHistory.map(entry =>
+          entry.id === promptId
+            ? {
+                ...entry,
+                status: 'error',
+                error: error instanceof Error ? error.message : 'Failed to generate images with reference.',
+              }
+            : entry
+        ),
+      }));
+
+      throw error instanceof Error ? error : new Error('Failed to generate images with reference.');
+    }
+  };
+
   return (
     <FontContext.Provider
       value={{
@@ -310,7 +551,9 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
         addSourceImage,
         removeSourceImage,
         toggleImageSelection,
-        generateAiImage,
+        generateAiImages,
+        generateWithReference,
+        setApprovedReferenceImage,
         addCharacterMapping,
         updateCharacterMapping,
         removeCharacterMapping,
@@ -329,7 +572,6 @@ export const FontProvider: React.FC<FontProviderProps> = ({ children }) => {
   );
 };
 
-// Hook for using the font context
 export const useFont = () => {
   const context = useContext(FontContext);
   if (!context) {
@@ -338,4 +580,4 @@ export const useFont = () => {
   return context;
 };
 
-export default FontContext; 
+export default FontContext;

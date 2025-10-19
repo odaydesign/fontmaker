@@ -2,15 +2,20 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import ImageUploadWithAutoDetection from '@/components/tools/ImageUploadWithAutoDetection';
+import UnifiedFontGenerator from '@/components/tools/UnifiedFontGenerator';
 import CharacterMappingOverview from '@/components/tools/CharacterMappingOverview';
 import CharacterAlignment from '@/components/tools/CharacterAlignment';
 import FontDownloader from '@/components/tools/FontDownloader';
+import OnboardingTutorial from '@/components/tools/OnboardingTutorial';
+import CharacterTemplateSelector from '@/components/tools/CharacterTemplateSelector';
 import { useFont } from '@/context/FontContext';
+import { Sparkles } from 'lucide-react';
 
 export default function CreatePage() {
   const { sourceImages, characterMappings, metadata, updateMetadata } = useFont();
+  const selectedImagesCount = sourceImages.filter(image => image.selected).length;
   const [currentStep, setCurrentStep] = useState(1);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const totalSteps = 5;
   
   const handleNext = () => {
@@ -29,7 +34,7 @@ export default function CreatePage() {
   const canProceed = () => {
     switch (currentStep) {
       case 1: // Image upload
-        return sourceImages.length > 0;
+        return selectedImagesCount > 0;
       case 2: // Character mapping
         return characterMappings.length > 0;
       case 3: // Character alignment
@@ -48,13 +53,26 @@ export default function CreatePage() {
         return (
           <>
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold">Upload & Auto-Detect Characters</h2>
-              <p className="text-sm text-gray-500">
-                Upload images and let our AI automatically detect and map characters for you.
-              </p>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-bold">Create Your Character Sheets</h2>
+                  <p className="text-sm text-gray-500">
+                    Generate with AI or upload your own images to start creating your font.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTemplateSelector(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Character Templates
+                </Button>
+              </div>
             </div>
             <div className="p-6">
-              <ImageUploadWithAutoDetection />
+              <UnifiedFontGenerator />
             </div>
           </>
         );
@@ -189,6 +207,20 @@ export default function CreatePage() {
           <div>{/* Empty div for flex spacing on the last step */}</div>
         )}
       </div>
+
+      {/* Onboarding Tutorial */}
+      <OnboardingTutorial />
+
+      {/* Character Template Selector */}
+      {showTemplateSelector && (
+        <CharacterTemplateSelector
+          onSelectTemplate={(characters) => {
+            // Copy to clipboard
+            navigator.clipboard.writeText(characters);
+          }}
+          onClose={() => setShowTemplateSelector(false)}
+        />
+      )}
     </div>
   );
 } 
