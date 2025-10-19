@@ -2,13 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import StripeService from '@/lib/services/StripeService';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-18.acacia',
-});
-
+// Only initialize Stripe if configured
+const stripeApiKey = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 
+let stripe: Stripe | null = null;
+if (stripeApiKey && stripeApiKey.startsWith('sk_')) {
+  stripe = new Stripe(stripeApiKey, {
+    apiVersion: '2024-12-18.acacia',
+  });
+}
+
 export async function POST(request: NextRequest) {
+  // Check if Stripe is configured
+  if (!stripe) {
+    return NextResponse.json(
+      { error: 'Stripe is not configured' },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.text();
     const signature = request.headers.get('stripe-signature');
