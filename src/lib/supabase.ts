@@ -22,6 +22,7 @@ const isPlaceholderKey =
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isDevWithPlaceholders = isDevelopment && (isPlaceholderUrl || isPlaceholderKey);
+const isUsingPlaceholders = isPlaceholderUrl || isPlaceholderKey;
 
 // In development, we'll still create a client even with placeholder credentials
 // But we'll log warnings
@@ -31,9 +32,9 @@ if (isPlaceholderUrl || isPlaceholderKey) {
       'Supabase credentials appear to be placeholder values. App will run in mock mode.'
     );
   } else {
-    // In production, don't even try to create a client with bad credentials
-    throw new Error(
-      'Invalid Supabase credentials. Please set proper NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.'
+    // In production, warn but don't throw - allow app to run with limited features
+    console.warn(
+      'Supabase credentials not configured. Database-dependent features will be disabled.'
     );
   }
 } else {
@@ -66,13 +67,13 @@ const mockMethods = {
   }
 };
 
-// Test the connection - but skip the test in dev mode with placeholder credentials
+// Test the connection - but skip the test when using placeholder credentials
 (async () => {
-  if (isDevWithPlaceholders) {
-    console.log('Development mode with placeholder credentials - skipping Supabase connection test');
+  if (isUsingPlaceholders) {
+    console.log('Placeholder credentials detected - skipping Supabase connection test');
     return;
   }
-  
+
   try {
     const { error } = await supabase.from('fonts').select('*', { count: 'exact', head: true });
     if (error) {
