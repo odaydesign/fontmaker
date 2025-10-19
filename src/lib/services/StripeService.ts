@@ -4,9 +4,25 @@ import TokenService from './TokenService';
 
 const prisma = new PrismaClient();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-18.acacia',
-});
+// Only initialize Stripe if API key is provided
+const stripeApiKey = process.env.STRIPE_SECRET_KEY;
+let stripe: Stripe | null = null;
+
+if (stripeApiKey && stripeApiKey.startsWith('sk_')) {
+  stripe = new Stripe(stripeApiKey, {
+    apiVersion: '2024-12-18.acacia',
+  });
+} else {
+  console.warn('Stripe API key not configured. Payment features will be disabled.');
+}
+
+// Helper to check if Stripe is available
+const ensureStripe = () => {
+  if (!stripe) {
+    throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+  }
+  return stripe;
+};
 
 // Product and pricing configuration
 export const STRIPE_PLANS = {
@@ -61,7 +77,7 @@ export class StripeService {
     }
 
     // Create new Stripe customer
-    const customer = await stripe.customers.create({
+    const customer = await ensureStripe().customers.create({
       email,
       metadata: {
         userId,
@@ -91,7 +107,7 @@ export class StripeService {
     const customerId = await this.getOrCreateCustomer(userId, email);
     const planConfig = STRIPE_PLANS[plan];
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await ensureStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -126,7 +142,7 @@ export class StripeService {
     const customerId = await this.getOrCreateCustomer(userId, email);
     const packConfig = TOKEN_PACKS[pack];
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await ensureStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'payment',
       payment_method_types: ['card'],
@@ -156,7 +172,7 @@ export class StripeService {
     subscriptionId: string,
     customerId: string
   ): Promise<void> {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await ensureStripe().subscriptions.retrieve(subscriptionId);
 
     // Find user by customer ID
     const user = await prisma.user.findUnique({
@@ -263,7 +279,7 @@ export class StripeService {
     customerId: string,
     returnUrl: string
   ): Promise<string> {
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await ensureStripe().billingPortal.sessions.create({
       customer: customerId,
       return_url: returnUrl,
     });
@@ -287,7 +303,7 @@ export class StripeService {
       return null;
     }
 
-    const stripeSubscription = await stripe.subscriptions.retrieve(
+    const stripeSubscription = await ensureStripe().subscriptions.retrieve(
       subscription.stripeSubscriptionId
     );
 
