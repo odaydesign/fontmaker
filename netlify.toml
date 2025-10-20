@@ -1,6 +1,7 @@
 [build]
-  command = "npm run build"
+  command = "npx prisma generate && npm run build"
   publish = ".next"
+  functions = "netlify/functions"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -8,8 +9,15 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Optimize function bundling
+[functions]
+  external_node_modules = ["@prisma/client", "prisma", "sharp", "@img/sharp-darwin-arm64", "lucide-react"]
+  node_bundler = "esbuild"
 
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/.netlify/functions/server/:splat"
   status = 200
+  force = false
