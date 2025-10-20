@@ -43,8 +43,28 @@ next-env.d.ts
 .vscode/
 .idea/
 
-# font storage
+# font storage - all temporary and user-generated fonts
 /font-storage
 /temp-fonts
 /public/temp-fonts
 /public/temp
+/test-font
+*.ttf
+*.otf
+*.woff
+*.woff2
+!public/demo-fonts/*.ttf
+!public/demo-fonts/*.otf
+!public/demo-fonts/*.woff
+!public/demo-fonts/*.woff2
+
+# temporary files
+*.tmp
+*.temp
+/tmp
+/temp
+
+# duplicate build directories
+/.next 2/
+/.next 3/
+/.next 4/
