@@ -24,11 +24,26 @@ const Header = () => {
 
   const handleSignOut = async () => {
     setDropdownOpen(false);
-    // Sign out and force redirect to home page
-    await signOut({
-      callbackUrl: window.location.origin,
-      redirect: true
-    });
+
+    try {
+      // Sign out from NextAuth
+      await signOut({
+        redirect: false // Don't auto-redirect, we'll do it manually
+      });
+
+      // Clear any local storage
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+
+      // Force redirect to home page and reload
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Force redirect anyway
+      window.location.href = '/';
+    }
   };
 
   return (
