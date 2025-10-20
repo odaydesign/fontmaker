@@ -11,6 +11,16 @@ const Header = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // DEBUG: Log session state
+  useEffect(() => {
+    console.log('🔍 Header Debug:', {
+      status,
+      hasSession: !!session,
+      session: session,
+      user: session?.user
+    });
+  }, [session, status]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -55,7 +65,7 @@ const Header = () => {
             <Link href="/create" className="text-foreground hover:text-muted-foreground transition-colors font-medium">
               Create Font
             </Link>
-            {session && (
+            {session?.user && (
               <Link href="/library" className="text-foreground hover:text-muted-foreground transition-colors font-medium">
                 My Library
               </Link>
@@ -76,7 +86,7 @@ const Header = () => {
           <div className="flex items-center justify-end gap-4">
             {status === 'loading' ? (
               <div className="w-8 h-8 rounded-full bg-muted animate-pulse"></div>
-            ) : session ? (
+            ) : session?.user ? (
               <>
                 {/* Token Balance */}
                 <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
