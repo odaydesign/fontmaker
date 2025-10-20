@@ -7,10 +7,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  env: {
-    NEXTAUTH_SECRET: "your-super-secret-nextauth-key-for-development-only-change-in-production",
-    NEXTAUTH_URL: "http://localhost:3000",
-  },
   // Optimize bundle size for Netlify
   experimental: {
     optimizePackageImports: ['lucide-react', 'opentype.js', '@radix-ui/react-slider', '@radix-ui/react-tabs'],
