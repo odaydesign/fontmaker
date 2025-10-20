@@ -1,23 +1,36 @@
 [build]
   command = "npx prisma generate && npm run build"
   publish = ".next"
-  functions = "netlify/functions"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS = "--legacy-peer-deps"
   NEXT_TELEMETRY_DISABLED = "1"
 
-# Optimize function bundling
+# Exclude large node modules to reduce function size
 [functions]
-  external_node_modules = ["@prisma/client", "prisma", "sharp", "@img/sharp-darwin-arm64", "lucide-react"]
   node_bundler = "esbuild"
+  # Exclude large modules that aren't needed at runtime
+  included_files = [
+    "!node_modules/@next/**/*",
+    "!node_modules/next/**/*",
+    "!node_modules/@prisma/engines/**/*",
+    "!node_modules/prisma/build/**/*",
+    "!node_modules/sharp/vendor/**/*",
+    "!node_modules/typescript/**/*",
+    "!node_modules/eslint/**/*",
+    "!node_modules/@typescript-eslint/**/*",
+    "!node_modules/@eslint/**/*",
+    "!node_modules/lucide-react/icons/**/*",
+    "!node_modules/effect/**/*",
+    "!node_modules/openai/uploads/**/*"
+  ]
 
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/server/:splat"
-  status = 200
-  force = false
+# Keep essential modules external
+[[functions]]
+  external_node_modules = [
+    "@prisma/client",
+    "sharp"
+  ]
