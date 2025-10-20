@@ -23,7 +23,12 @@ const Header = () => {
   }, []);
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
+    setDropdownOpen(false);
+    // Sign out and force redirect to home page
+    await signOut({
+      callbackUrl: window.location.origin,
+      redirect: true
+    });
   };
 
   return (
