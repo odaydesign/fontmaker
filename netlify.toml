@@ -12,7 +12,7 @@
 # Exclude large node modules to reduce function size
 [functions]
   node_bundler = "esbuild"
-  # Exclude large modules that aren't needed at runtime
+  external_node_modules = ["@prisma/client", "sharp"]
   included_files = [
     "!node_modules/@next/**/*",
     "!node_modules/next/**/*",
@@ -26,11 +26,4 @@
     "!node_modules/lucide-react/icons/**/*",
     "!node_modules/effect/**/*",
     "!node_modules/openai/uploads/**/*"
-  ]
-
-# Keep essential modules external
-[[functions]]
-  external_node_modules = [
-    "@prisma/client",
-    "sharp"
   ]
