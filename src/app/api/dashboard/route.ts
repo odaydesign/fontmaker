@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     const totalDownloadsResult = await prisma.font.aggregate({
       where: { userId },
       _sum: {
-        downloads: true,
+        downloadCount: true,
       },
     });
 
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       },
       stats: {
         fontsCreated: user._count.fonts,
-        totalDownloads: totalDownloadsResult._sum.downloads || 0,
+        totalDownloads: totalDownloadsResult._sum.downloadCount || 0,
         totalLikes: totalLikesResult,
       },
       tokenHistory: tokenHistory.map((transaction) => ({
