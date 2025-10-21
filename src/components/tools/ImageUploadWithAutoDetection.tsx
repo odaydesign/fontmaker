@@ -57,10 +57,11 @@ const ImageUploadWithAutoDetection: React.FC = () => {
     [sourceImages]
   );
 
-  const uploadedImages = useMemo(
-    () => sourceImages.filter(image => image.origin !== 'ai'),
-    [sourceImages]
-  );
+  const uploadedImages = useMemo(() => {
+    const filtered = sourceImages.filter(image => image.origin !== 'ai');
+    console.log('🔵 Uploaded images count:', filtered.length, 'Total images:', sourceImages.length);
+    return filtered;
+  }, [sourceImages]);
 
   useEffect(() => {
     setDetectionProgress(prev => {
@@ -330,6 +331,7 @@ const ImageUploadWithAutoDetection: React.FC = () => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
+    console.log('🔵 Upload started, files:', files.length);
     setIsUploading(true);
 
     try {
@@ -337,13 +339,19 @@ const ImageUploadWithAutoDetection: React.FC = () => {
 
       for (let i = 0; i < files.length; i += 1) {
         const file = files[i];
+        console.log('🔵 Processing file:', file.name, 'Size:', (file.size / 1024).toFixed(2), 'KB');
+
         const url = await readFileAsDataURL(file);
+        console.log('🔵 Data URL created, length:', url.length, 'Preview:', url.substring(0, 100));
+
         let dimensions: { width?: number; height?: number } = {};
 
         try {
           const { width, height } = await getImageDimensions(url);
           dimensions = { width, height };
-        } catch {
+          console.log('🔵 Image dimensions:', width, 'x', height);
+        } catch (error) {
+          console.warn('⚠️ Could not get dimensions:', error);
           // Best effort; allow missing dimensions.
         }
 
@@ -355,12 +363,14 @@ const ImageUploadWithAutoDetection: React.FC = () => {
           ...dimensions,
         });
 
+        console.log('🔵 Image added to state:', image.id);
         uploads.push(image);
       }
 
+      console.log('✅ Upload complete, total images:', uploads.length);
       toast.success(`Uploaded ${uploads.length} image${uploads.length === 1 ? '' : 's'}.`);
     } catch (error) {
-      console.error('Error uploading images:', error);
+      console.error('❌ Error uploading images:', error);
       toast.error('Failed to upload one or more files.');
     } finally {
       setIsUploading(false);
