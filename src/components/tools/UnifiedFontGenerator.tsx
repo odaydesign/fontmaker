@@ -34,7 +34,8 @@ const UnifiedFontGenerator: React.FC = () => {
     removeSourceImage,
     setApprovedReferenceImage,
     approvedReferenceImage,
-    generateWithReference
+    generateWithReference,
+    addSourceImage
   } = useFont();
 
   // Workflow state
@@ -276,9 +277,14 @@ const UnifiedFontGenerator: React.FC = () => {
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🟢 Upload started!');
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      console.log('⚠️ No files selected');
+      return;
+    }
 
+    console.log(`🟢 Processing ${files.length} file(s)`);
     setIsUploading(true);
 
     try {
@@ -286,31 +292,38 @@ const UnifiedFontGenerator: React.FC = () => {
 
       for (let i = 0; i < files.length; i += 1) {
         const file = files[i];
+        console.log(`🟢 Reading file: ${file.name}`);
         const url = await readFileAsDataURL(file);
+        console.log(`🟢 Data URL created, length: ${url.length}`);
+
         let dimensions: { width?: number; height?: number } = {};
 
         try {
           const { width, height } = await getImageDimensions(url);
           dimensions = { width, height };
-        } catch {
+          console.log(`🟢 Image dimensions: ${width}x${height}`);
+        } catch (err) {
+          console.warn('⚠️ Could not get dimensions:', err);
           // Best effort; allow missing dimensions.
         }
 
-        const image = sourceImages.find(img => img.url === url) || {
-          id: `upload-${Date.now()}-${i}`,
+        // Add the image to FontContext state
+        const addedImage = addSourceImage({
           url,
           isAiGenerated: false,
-          origin: 'upload' as const,
+          origin: 'upload',
           selected: false,
           ...dimensions,
-        };
+        });
 
-        uploads.push(image);
+        console.log(`✅ Image added to state with ID: ${addedImage.id}`);
+        uploads.push(addedImage);
       }
 
+      console.log(`✅ All ${uploads.length} images uploaded successfully`);
       toast.success(`Uploaded ${uploads.length} image${uploads.length === 1 ? '' : 's'}.`);
     } catch (error) {
-      console.error('Error uploading images:', error);
+      console.error('❌ Error uploading images:', error);
       toast.error('Failed to upload one or more files.');
     } finally {
       setIsUploading(false);

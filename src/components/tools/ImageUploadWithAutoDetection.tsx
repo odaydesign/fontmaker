@@ -324,12 +324,25 @@ const ImageUploadWithAutoDetection: React.FC = () => {
   };
 
   const handleUploadClick = () => {
-    fileInputRef.current?.click();
+    console.log('🟢 Upload button clicked!');
+    console.log('🟢 File input ref:', fileInputRef.current);
+    if (fileInputRef.current) {
+      console.log('🟢 Triggering file input click');
+      fileInputRef.current.click();
+    } else {
+      console.error('❌ File input ref is null!');
+    }
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🟢 handleFileChange called!');
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    console.log('🟢 Files from input:', files);
+
+    if (!files || files.length === 0) {
+      console.log('⚠️ No files selected');
+      return;
+    }
 
     console.log('🔵 Upload started, files:', files.length);
     setIsUploading(true);
@@ -479,6 +492,19 @@ const ImageUploadWithAutoDetection: React.FC = () => {
   };
 
   return (
+    <>
+      {/* DEBUG PANEL FOR IMAGE STATE */}
+      <div className="fixed bottom-4 left-4 z-[9999] bg-blue-100 border-2 border-blue-500 p-4 rounded-lg shadow-lg max-w-sm text-xs">
+        <div className="font-bold text-blue-800 mb-2">IMAGE DEBUG:</div>
+        <div className="space-y-1 text-black">
+          <div>Total Images: <span className="font-mono font-bold">{sourceImages.length}</span></div>
+          <div>Uploaded Images: <span className="font-mono font-bold">{uploadedImages.length}</span></div>
+          <div>AI Images: <span className="font-mono font-bold">{aiImages.length}</span></div>
+          <div>Selected: <span className="font-mono font-bold">{selectedCount}</span></div>
+          <div>Is Uploading: <span className="font-mono font-bold">{isUploading ? 'YES' : 'NO'}</span></div>
+        </div>
+      </div>
+
     <div className="space-y-8">
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b p-6 lg:flex-row lg:items-center lg:justify-between">
@@ -694,6 +720,7 @@ const ImageUploadWithAutoDetection: React.FC = () => {
         </section>
       </div>
     </div>
+    </>
   );
 };
 

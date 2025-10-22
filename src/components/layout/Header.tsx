@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { useState, useRef, useEffect } from 'react';
@@ -19,6 +20,11 @@ const Header = () => {
       session: session,
       user: session?.user
     });
+
+    // Super visible alert for debugging
+    if (status === 'authenticated' && !session?.user) {
+      console.error('🚨 PROBLEM: Status is authenticated but no user in session!');
+    }
   }, [session, status]);
 
   useEffect(() => {
@@ -57,7 +63,24 @@ const Header = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background">
+    <div>
+      {/* DEBUG PANEL - REMOVE THIS LATER */}
+      <div className="fixed bottom-4 right-4 z-[9999] bg-yellow-100 border-2 border-yellow-500 p-4 rounded-lg shadow-lg max-w-sm text-xs">
+        <div className="font-bold text-yellow-800 mb-2">DEBUG INFO:</div>
+        <div className="space-y-1 text-black">
+          <div>Status: <span className="font-mono font-bold">{status}</span></div>
+          <div>Has Session: <span className="font-mono font-bold">{session ? 'YES' : 'NO'}</span></div>
+          <div>Has User: <span className="font-mono font-bold">{session?.user ? 'YES' : 'NO'}</span></div>
+          {session?.user && (
+            <>
+              <div>Email: <span className="font-mono">{session.user.email}</span></div>
+              <div>Username: <span className="font-mono">{session.user.username || 'N/A'}</span></div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background">
       <div className="container mx-auto px-4 py-4">
         <div className="grid grid-cols-3 items-center">
           {/* Left Navigation */}
@@ -187,6 +210,7 @@ const Header = () => {
         </div>
       </div>
     </header>
+    </div>
   );
 };
 

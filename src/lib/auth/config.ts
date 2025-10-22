@@ -103,14 +103,25 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      // Add custom fields to session
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.username = token.username as string;
-        session.user.subscriptionTier = token.subscriptionTier as string;
-        session.user.tokensRemaining = token.tokensRemaining as number;
+      // DEBUG: Log what we're receiving
+      console.log('🔍 Session Callback - Token:', token);
+      console.log('🔍 Session Callback - Session before:', session);
+
+      // Populate user data from token to session
+      if (token) {
+        session.user = {
+          ...session.user,
+          id: token.id as string,
+          email: token.email as string,
+          name: token.name as string,
+          image: token.picture as string,
+          username: token.username as string,
+          subscriptionTier: token.subscriptionTier as string,
+          tokensRemaining: token.tokensRemaining as number,
+        };
       }
 
+      console.log('🔍 Session Callback - Session after:', session);
       return session;
     },
 
