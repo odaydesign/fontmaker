@@ -9,19 +9,21 @@ import { ArrowRight } from 'lucide-react';
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <section className="relative flex w-full flex-col justify-center bg-background pt-32 pb-24">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-          <div className="flex flex-col items-center gap-12">
+      <section className="relative flex w-full flex-col justify-center bg-gradient-to-b from-background to-muted/30 pt-40 pb-32">
+        <div className="container mx-auto px-6 sm:px-8 lg:px-12 max-w-7xl">
+          <div className="flex flex-col items-center gap-16">
             <AnimatedFontCards />
 
             <div className="text-center max-w-4xl">
-              <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-6 leading-tight">
+              <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-8 leading-[1.1] tracking-tight">
                 Create Your Own Custom Font
                 <br />
-                with AI Technology
+                <span className="bg-gradient-to-r from-accent via-accent/80 to-accent bg-clip-text text-transparent">
+                  with AI Technology
+                </span>
               </h1>
 
-              <p className="text-base sm:text-lg text-muted-foreground mb-10">
+              <p className="text-lg sm:text-xl text-muted-foreground mb-12 max-w-2xl mx-auto leading-relaxed">
                 Transform your handwriting or ideas into professional fonts in minutes.
                 No design experience needed.
               </p>
@@ -29,7 +31,7 @@ export default function Home() {
               <Button
                 asChild
                 size="lg"
-                className="rounded-full px-8 py-6 text-base mb-20"
+                className="rounded-xl px-10 py-7 text-base font-semibold mb-24 shadow-notion-lg"
               >
                 <Link href="/create" className="flex items-center gap-2">
                   Start Creating Now
@@ -37,18 +39,24 @@ export default function Home() {
                 </Link>
               </Button>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-12 w-full">
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold mb-3">Professional Quality</h3>
-                  <p className="text-sm text-muted-foreground">Create fonts that look professionally crafted</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
+                <div className="p-6 rounded-xl bg-card border border-border hover-lift">
+                  <h3 className="text-lg font-semibold mb-2">Professional Quality</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Create fonts that look professionally crafted
+                  </p>
                 </div>
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold mb-3">Lightning Fast</h3>
-                  <p className="text-sm text-muted-foreground">Generate complete fonts in minutes, not hours</p>
+                <div className="p-6 rounded-xl bg-card border border-border hover-lift">
+                  <h3 className="text-lg font-semibold mb-2">Lightning Fast</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Generate complete fonts in minutes, not hours
+                  </p>
                 </div>
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold mb-3">Unlimited Styles</h3>
-                  <p className="text-sm text-muted-foreground">From elegant scripts to bold displays</p>
+                <div className="p-6 rounded-xl bg-card border border-border hover-lift">
+                  <h3 className="text-lg font-semibold mb-2">Unlimited Styles</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    From elegant scripts to bold displays
+                  </p>
                 </div>
               </div>
             </div>
