@@ -49,20 +49,20 @@ const Header = () => {
   };
 
   return (
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-b border-border">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="w-full px-8 py-4">
         <div className="flex items-center justify-between">
           {/* Left Navigation */}
           <nav className="flex items-center gap-2">
-            <Link href="/create" className="text-sm font-medium text-foreground hover:bg-muted px-4 py-2 rounded-xl transition-all">
+            <Link href="/create" className="text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground px-4 py-2 rounded-md transition-all">
               Create Font
             </Link>
             {session?.user && (
-              <Link href="/library" className="text-sm font-medium text-foreground hover:bg-muted px-4 py-2 rounded-xl transition-all">
+              <Link href="/library" className="text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground px-4 py-2 rounded-md transition-all">
                 My Library
               </Link>
             )}
-            <Link href="/community" className="text-sm font-medium text-foreground hover:bg-muted px-4 py-2 rounded-xl transition-all">
+            <Link href="/community" className="text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground px-4 py-2 rounded-md transition-all">
               Community
             </Link>
           </nav>
@@ -77,13 +77,13 @@ const Header = () => {
           {/* Right Action */}
           <div className="flex items-center gap-3">
             {status === 'loading' ? (
-              <div className="w-10 h-10 rounded-xl bg-muted animate-pulse"></div>
+              <div className="w-10 h-10 rounded-md bg-muted animate-pulse"></div>
             ) : session?.user ? (
               <>
                 {/* Token Balance */}
-                <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-muted rounded-xl">
-                  <Coins className="w-4 h-4 text-foreground" />
-                  <span className="text-sm font-semibold text-foreground">
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-md border border-border">
+                  <Coins className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">
                     {session.user?.tokensRemaining ?? 0}
                   </span>
                 </div>
@@ -92,71 +92,57 @@ const Header = () => {
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center gap-2 hover:bg-muted px-4 py-2 rounded-xl transition-all active-press"
+                    className="flex items-center gap-2 hover:bg-accent hover:text-accent-foreground px-3 py-2 rounded-md transition-all"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
-                      <User className="w-4 h-4 text-background" />
+                    <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
+                      <User className="w-4 h-4 text-primary-foreground" />
                     </div>
-                    <span className="hidden md:block text-sm font-medium text-foreground">
+                    <span className="hidden md:block text-sm font-medium">
                       {session.user?.username || session.user?.email || 'User'}
                     </span>
-                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {dropdownOpen && (
-                    <div className="absolute right-0 mt-3 w-64 bg-card border border-border rounded-2xl shadow-notion-lg py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="px-5 py-4 border-b border-border">
-                        <p className="text-sm font-semibold text-foreground">
+                    <div className="absolute right-0 mt-2 w-56 bg-popover border border-border rounded-lg shadow-lg py-1">
+                      <div className="px-4 py-3 border-b border-border">
+                        <p className="text-sm font-medium">
                           {session.user?.username || 'User'}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate mt-1">
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
                           {session.user?.email || ''}
                         </p>
-                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
-                          <span className="text-xs font-medium text-foreground">
-                            {session.user?.subscriptionTier || 'FREE'}
-                          </span>
-                        </div>
                       </div>
 
                       <div className="py-1">
                         <Link
                           href="/dashboard"
-                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                           onClick={() => setDropdownOpen(false)}
                         >
-                          <LayoutDashboard className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm font-medium text-foreground">Dashboard</span>
+                          <LayoutDashboard className="w-4 h-4" />
+                          Dashboard
                         </Link>
 
                         {session.user?.username && (
                           <Link
                             href={`/profile/${session.user.username}`}
-                            className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                             onClick={() => setDropdownOpen(false)}
                           >
-                            <User className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm font-medium text-foreground">Profile</span>
+                            <User className="w-4 h-4" />
+                            Profile
                           </Link>
                         )}
-
-                        <div className="md:hidden">
-                          <div className="flex items-center gap-3 px-4 py-2.5 bg-accent/5">
-                            <Coins className="w-4 h-4 text-accent" />
-                            <span className="text-sm font-medium text-foreground">
-                              {session.user?.tokensRemaining ?? 0} tokens
-                            </span>
-                          </div>
-                        </div>
                       </div>
 
-                      <div className="border-t border-border mt-1 pt-1">
+                      <div className="border-t border-border">
                         <button
                           onClick={handleSignOut}
-                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-destructive/10 transition-colors w-full text-left"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent hover:text-accent-foreground transition-colors w-full text-left"
                         >
-                          <LogOut className="w-4 h-4 text-destructive" />
-                          <span className="text-sm font-medium text-destructive">Sign Out</span>
+                          <LogOut className="w-4 h-4" />
+                          Sign Out
                         </button>
                       </div>
                     </div>
@@ -167,13 +153,13 @@ const Header = () => {
               <div className="flex items-center gap-2">
                 <Link
                   href="/auth/login"
-                  className="text-sm font-medium text-foreground hover:bg-muted px-4 py-2 rounded-xl transition-all"
+                  className="text-sm font-medium hover:bg-accent hover:text-accent-foreground px-4 py-2 rounded-md transition-all"
                 >
                   Login
                 </Link>
                 <Link
                   href="/auth/register"
-                  className="text-sm font-medium bg-foreground text-background px-6 py-2.5 rounded-xl hover:bg-foreground/90 active-press shadow-notion-sm"
+                  className="text-sm font-medium bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition-all"
                 >
                   Sign Up
                 </Link>
