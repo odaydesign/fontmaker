@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  /* Notion-inspired color system */
-  --background: hsl(0 0% 98%);
-  --foreground: hsl(0 0% 22%);
+  /* Clean, minimalist color system inspired by iOS */
+  --background: hsl(0 0% 99%);
+  --foreground: hsl(0 0% 10%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 22%);
+  --card-foreground: hsl(0 0% 10%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 22%);
+  --popover-foreground: hsl(0 0% 10%);
   --primary: hsl(0 0% 9%);
   --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(0 0% 96%);
+  --secondary: hsl(0 0% 97%);
   --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(0 0% 96%);
-  --muted-foreground: hsl(0 0% 47%);
-  --accent: hsl(250 70% 62%);
+  --muted: hsl(0 0% 97%);
+  --muted-foreground: hsl(0 0% 52%);
+  --accent: hsl(0 0% 9%);
   --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 84.2% 60.2%);
+  --destructive: hsl(0 100% 60%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 90%);
-  --input: hsl(0 0% 89%);
+  --border: hsl(0 0% 93%);
+  --input: hsl(0 0% 93%);
   --ring: hsl(0 0% 9%);
-  --radius: 0.75rem;
+  --radius: 1rem;
 
-  /* Shadows for depth */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 12px rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.06), 0 16px 48px rgba(0, 0, 0, 0.08);
+  /* Subtle, refined shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
 .dark {
@@ -90,10 +90,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Smooth transitions for all interactive elements */
-* {
-  transition-property: color, background-color, border-color, box-shadow, transform;
-  transition-duration: 150ms;
+/* Smooth transitions for interactive elements - iOS style */
+button, a, input, textarea, select {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 200ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -136,19 +136,28 @@ html {
   box-shadow: var(--shadow-lg);
 }
 
-/* Hover lift effect */
+/* Hover lift effect - subtle */
 .hover-lift {
-  transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+  transition: transform 250ms ease-out, box-shadow 250ms ease-out;
 }
 
 .hover-lift:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
-/* Button press effect */
+/* Button press effect - iOS style */
 .active-press:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+
+/* iOS-style card */
+.ios-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 @keyframes blink {

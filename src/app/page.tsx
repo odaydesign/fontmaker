@@ -14,13 +14,11 @@ export default function Home() {
           <div className="flex flex-col items-center gap-16">
             <AnimatedFontCards />
 
-            <div className="text-center max-w-4xl">
-              <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-8 leading-[1.1] tracking-tight">
-                Create Your Own Custom Font
+            <div className="text-center max-w-5xl">
+              <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold mb-8 leading-[1.05] tracking-tight">
+                Create Your Own
                 <br />
-                <span className="bg-gradient-to-r from-accent via-accent/80 to-accent bg-clip-text text-transparent">
-                  with AI Technology
-                </span>
+                Custom Font
               </h1>
 
               <p className="text-lg sm:text-xl text-muted-foreground mb-12 max-w-2xl mx-auto leading-relaxed">
@@ -31,7 +29,7 @@ export default function Home() {
               <Button
                 asChild
                 size="lg"
-                className="rounded-xl px-10 py-7 text-base font-semibold mb-24 shadow-notion-lg"
+                className="mb-24"
               >
                 <Link href="/create" className="flex items-center gap-2">
                   Start Creating Now
@@ -39,21 +37,21 @@ export default function Home() {
                 </Link>
               </Button>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
-                <div className="p-6 rounded-xl bg-card border border-border hover-lift">
-                  <h3 className="text-lg font-semibold mb-2">Professional Quality</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                <div className="p-8 rounded-2xl bg-card border border-border hover-lift">
+                  <h3 className="text-base font-semibold mb-2">Professional Quality</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Create fonts that look professionally crafted
                   </p>
                 </div>
-                <div className="p-6 rounded-xl bg-card border border-border hover-lift">
-                  <h3 className="text-lg font-semibold mb-2">Lightning Fast</h3>
+                <div className="p-8 rounded-2xl bg-card border border-border hover-lift">
+                  <h3 className="text-base font-semibold mb-2">Lightning Fast</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Generate complete fonts in minutes, not hours
                   </p>
                 </div>
-                <div className="p-6 rounded-xl bg-card border border-border hover-lift">
-                  <h3 className="text-lg font-semibold mb-2">Unlimited Styles</h3>
+                <div className="p-8 rounded-2xl bg-card border border-border hover-lift">
+                  <h3 className="text-base font-semibold mb-2">Unlimited Styles</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     From elegant scripts to bold displays
                   </p>
