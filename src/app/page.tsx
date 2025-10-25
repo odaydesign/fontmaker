@@ -8,9 +8,9 @@ import { ArrowRight } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background w-full">
       <section className="relative flex w-full flex-col justify-center bg-gradient-to-b from-background to-muted/30 pt-40 pb-32">
-        <div className="container mx-auto px-6 sm:px-8 lg:px-12 max-w-7xl">
+        <div className="w-full px-6 sm:px-8 lg:px-12 max-w-[1800px] mx-auto">
           <div className="flex flex-col items-center gap-16">
             <AnimatedFontCards />
 

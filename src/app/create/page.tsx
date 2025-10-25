@@ -182,100 +182,94 @@ export default function CreatePage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="w-72 border-r border-border bg-card/50 backdrop-blur-sm">
-        <div className="sticky top-20 p-6">
-          <h2 className="text-lg font-semibold mb-6">Create Your Font</h2>
+    <div className="min-h-screen bg-background w-full">
+      {/* Top Progress Bar */}
+      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
+        <div className="w-full px-8 py-4">
+          {/* Progress Indicator */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-foreground">Create Your Font</h2>
+              <span className="text-xs text-muted-foreground">
+                Step {currentStep} of {totalSteps}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-foreground">
+              {Math.round((currentStep / totalSteps) * 100)}% Complete
+            </span>
+          </div>
 
-          <nav className="space-y-1">
-            {steps.map((step) => {
+          {/* Step Pills */}
+          <div className="flex items-center gap-2 mb-3">
+            {steps.map((step, index) => {
               const isCompleted = step.id < currentStep;
               const isCurrent = step.id === currentStep;
               const isUpcoming = step.id > currentStep;
 
               return (
-                <button
-                  key={step.id}
-                  onClick={() => step.id < currentStep && setCurrentStep(step.id)}
-                  disabled={isUpcoming}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left ${
-                    isCurrent
-                      ? 'bg-accent text-accent-foreground shadow-notion-sm'
-                      : isCompleted
-                      ? 'hover:bg-muted text-foreground'
-                      : 'text-muted-foreground cursor-not-allowed'
-                  }`}
-                >
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
-                    isCurrent
-                      ? 'bg-accent-foreground/10'
-                      : isCompleted
-                      ? 'bg-accent/20'
-                      : 'bg-muted'
-                  }`}>
+                <div key={step.id} className="flex items-center flex-1">
+                  <button
+                    onClick={() => step.id <= currentStep && setCurrentStep(step.id)}
+                    disabled={isUpcoming}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-xs font-medium whitespace-nowrap ${
+                      isCurrent
+                        ? 'bg-accent text-accent-foreground shadow-notion-sm'
+                        : isCompleted
+                        ? 'bg-accent/10 text-accent hover:bg-accent/20'
+                        : 'bg-muted text-muted-foreground cursor-not-allowed'
+                    }`}
+                  >
                     {isCompleted ? (
-                      <Check className="w-4 h-4 text-accent" />
+                      <Check className="w-3.5 h-3.5" />
                     ) : (
-                      <span className={`text-sm font-semibold ${isCurrent ? 'text-accent-foreground' : 'text-muted-foreground'}`}>
+                      <span className="w-5 h-5 rounded-full bg-current/10 flex items-center justify-center text-xs">
                         {step.id}
                       </span>
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${isCurrent ? 'text-accent-foreground' : ''}`}>
-                      {step.title}
-                    </p>
-                    <p className={`text-xs truncate ${
-                      isCurrent ? 'text-accent-foreground/70' : 'text-muted-foreground'
-                    }`}>
-                      {step.description}
-                    </p>
-                  </div>
-                  {isCurrent && (
-                    <ChevronRight className="w-4 h-4 text-accent-foreground flex-shrink-0" />
+                    <span className="hidden sm:inline">{step.title}</span>
+                  </button>
+                  {index < steps.length - 1 && (
+                    <div className="flex-1 h-0.5 mx-1 bg-border">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isCompleted ? 'bg-accent' : 'bg-transparent'
+                        }`}
+                      />
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
-          </nav>
+          </div>
 
-          {/* Progress Bar */}
-          <div className="mt-8 pt-6 border-t border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">Progress</span>
-              <span className="text-xs font-semibold text-foreground">
-                {Math.round((currentStep / totalSteps) * 100)}%
-              </span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-accent to-accent/80"
-                initial={{ width: 0 }}
-                animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-              />
-            </div>
+          {/* Animated Progress Bar */}
+          <div className="h-1 bg-muted rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-accent via-accent/90 to-accent"
+              initial={{ width: 0 }}
+              animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            />
           </div>
         </div>
-      </aside>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto p-8">
+      {/* Main Content - Full Width */}
+      <main className="w-full">
+        <div className="w-full px-8 py-8">
           <motion.div
             key={currentStep}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
-            className="bg-card rounded-xl border border-border shadow-notion-md"
+            className="w-full bg-card rounded-xl border border-border shadow-notion-md"
           >
             {renderStepContent()}
           </motion.div>
 
           {/* Navigation */}
-          <div className="flex justify-between mt-6">
+          <div className="flex justify-between mt-6 max-w-7xl mx-auto">
             <Button
               variant="outline"
               onClick={handleBack}
